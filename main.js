@@ -114,6 +114,12 @@ DLNA_Browser.prototype.toggle = function() {
 // This function adds the previous and next episodes to the playlist
 DLNA_Browser.prototype.add_surrounding_files = function() {
     
+    // DLNA isn't being used
+    if (this.parents.length == 0) {
+        return;
+    }
+    
+    
     var episodes = this.parents[this.parents.length-1].children;    
     var p_index = mp.get_property_number("playlist-playing-pos", 1);       
     var playlist = mp.get_property_native("playlist", {});
