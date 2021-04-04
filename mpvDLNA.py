@@ -50,12 +50,6 @@ def list(timeout):
         print("")
         print(device.friendly_name)
         print(device.location)
-        
-
-    #Remove this when done testing
-    print("")
-    print("Placeholder Server")
-    print("thisurlisblank")
     
 
 def help():
