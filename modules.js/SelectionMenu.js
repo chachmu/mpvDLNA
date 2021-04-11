@@ -10,6 +10,12 @@
 /* jshint -W097 */
 /* global mp, module, require, setInterval, clearInterval, setTimeout, clearTimeout */
 
+
+/* This is a modified version of the SelectionMenu module from VideoPlayerCode
+   that has been changed to better work with the mpvDLNA plugin.
+*/
+
+
 'use strict';
 
 var Ass = require('AssFormat'),
@@ -408,19 +414,30 @@ SelectionMenu.prototype.renderMenu = function(selectionPrefix, renderMode)
         for (var i = startIdx; i <= endIdx; ++i) {
             opt = this.options[i];
             if (i === this.selectionIdx)
-                // NOTE: Prefix stays on screen until cursor-move or re-render.
+                // NOTE: Prefix stays on screen until cursor-move or re-render.z
                 finalString += Ass.yellow(c)+'> '+(typeof selectionPrefix === 'string' ?
                                                    Ass.esc(selectionPrefix, c)+' ' : '');
+            
+            // If the menu option has no children to move to
+            // then it should be colored red and ignored
+            if (opt.children != null && opt.children.length == 0)
+                finalString += Ass.color("FF0000", c);
+            
             finalString += (
                 i === startIdx && startIdx > 0 ? '...' :
                     (
                         i === endIdx && endIdx < maxIdx ? '...' : Ass.esc(
-                            typeof opt === 'object' ? opt.menuText : opt,
+                            typeof opt === 'object' ? opt.name : opt,
                             c
                         )
                     )
             );
-            if (i === this.selectionIdx)
+            
+            // Display the now playing indicator
+            if (opt.isPlaying)
+                finalString += " <==";
+            
+            if (i === this.selectionIdx || (opt.children != null && opt.children.length == 0))
                 finalString += Ass.white(c);
             if (i !== endIdx)
                 finalString += '\n';

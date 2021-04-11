@@ -6,17 +6,18 @@ var SelectionMenu = require('SelectionMenu');
 
 
 var DLNA_Node = function(name, id) {
-    this.menuText = name;
+    this.name = name;
     this.id = id;
     this.url = null;
     this.children = null;
-
+    
+    this.isPlaying = false;
     this.type = "node";
 };
 
 
 var DLNA_Server = function(name, url) {
-    this.menuText = name;
+    this.name = name;
     this.id = "0"
     this.url = url;
     this.children = null;
@@ -65,13 +66,21 @@ var DLNA_Browser = function(options) {
     
     // List of titles to combine to get the title of the menu
     this.titles = [];
+    
+    // List of nodes added to playlist. Should mirror the MPV internal playlist.
+    // This is necessary because in certain edge cases if a user were to be playing
+    // an episode while browsing with the DLNA browser and left the folder that the 
+    // current episodes were in then we wouldn't be able to figure out where the 
+    // now playing indicator should be
+    this.playlist = [];
+    this.playingUrl = null;
 };
 
 
 DLNA_Browser.prototype.findDLNAServers = function() {
     mp.msg.info("scanning for dlna servers");
     
-    // increase the timeout if you have trouble finding a DLNA server that you know is working
+    // Increase the timeout if you have trouble finding a DLNA server that you know is working
     var result = mp.command_native({
         name: "subprocess",
         playback_only: false,
@@ -117,58 +126,93 @@ DLNA_Browser.prototype.toggle = function() {
 DLNA_Browser.prototype.on_file_load = function() {
     
     // DLNA isn't being used
-    if (this.parents.length == 0) {
+    if (this.playlist.length == 0) {
         return;
     }
     
-    
-    var episodes = this.parents[this.parents.length-1].children;    
     var p_index = mp.get_property_number("playlist-playing-pos", 1);       
     var playlist = mp.get_property_native("playlist", {});
     
-    var episode_number = null;
-    for (var i = 0; i < episodes.length; i++) {
-        if (episodes[i].url == playlist[p_index].filename) {
+    var episode_number = null
+    for (var i = 0; i < this.playlist.length; i++) {
+        if (this.playlist[i].url == playlist[p_index].filename) {
             episode_number = i;
             break;
         }
     };
     
-    // TODO: add code to move a currently playing indicator in the menu
-    //       This will probably also require handling when a file ends
-    
-    // Set the title to match the current episode
-    mp.set_property("force-media-title", episodes[episode_number].menuText);
-    
     if (episode_number === null) {
-        // The playlist wasn't set up with DLNA browser so we shouldn't modify it
+        mp.msg.warn("The DLNA playlist is not properly synced with the internal MPV playlist");
         return
     }
-
+    
+    var episode = this.playlist[episode_number];
+    var folder = episode.folder.children; // The code below is very confusing if you forget that folder != episode.folder
+    
+    
+    // Update the now playing indicator and rerender the menu if necessary
+    folder[episode.id].isPlaying = true;
+    if (this.menu.isMenuActive()) {
+        this.menu.renderMenu();
+    }
+    
+    // Set the title to match the current episode
+    mp.set_property("force-media-title", episode.folder.name + ":   " + folder[episode.id].name);
+    this.playingUrl = episode.url;
+    
+    
     // If there is a previous episode
-    if (episode_number - 1 >= 0) {
+    if (episode.id - 1 >= 0) {
         // and the playlist entry before this one either doesn't exist or isn't the previous episode
-        if (p_index-1 < 0 || playlist[p_index-1].filename != episodes[episode_number-1].url) {
-            var prev = episodes[episode_number-1].url
-            mp.commandv("loadfile", prev, "append");
+        if (p_index-1 < 0 || playlist[p_index-1].filename != folder[episode.id-1].url) {
+            var prev = folder[episode.id-1];
+            mp.commandv("loadfile", prev.url, "append");
+            
             // Move the last element in the list (the one we just appended) to in front of the current episode
             mp.commandv("playlist-move", playlist.length, p_index);
+            
+            this.playlist.push({ folder: episode.folder,
+                                     id: episode.id-1,
+                                    url: prev.url
+            });
         }
-
     }
     
     // If there is a next episode
-    if (episode_number + 1 < episodes.length) {
+    if (episode.id + 1 < folder.length) {
         // and the playlist entry after this one either doesn't exist or isn't the next episode
-        if (p_index+1 >= playlist.length || playlist[p_index+1].filename != episodes[episode_number+1].url) {
-            var next = episodes[episode_number+1].url
-            mp.commandv("loadfile", next, "append");
+        if (p_index+1 >= playlist.length || playlist[p_index+1].filename != folder[episode.id+1].url) {
+            var next = folder[episode.id+1];
+            mp.commandv("loadfile", next.url, "append");
+            
             // Move the last element in the list (the one we just appended) to behind the current episode
             mp.commandv("playlist-move", playlist.length, p_index+1);
+            
+            this.playlist.push({ folder: episode.folder,
+                                     id: episode.id+1,
+                                    url: next.url
+            });
         }
     }
+};
+
+// Removes the now playing indicator
+DLNA_Browser.prototype.on_file_end = function() {
+    // DLNA isn't being used
+    if (this.playlist.length == 0) {
+        return;
+    }
+
+    for (var i = 0; i < this.playlist.length; i++) {
+        if (this.playlist[i].url == this.playingUrl) {
+            var episode = this.playlist[i];
+            episode.folder.children[episode.id].isPlaying = false;
+            break;
+        }
+    };
 
 };
+
 
 DLNA_Browser.prototype.generateMenuTitle = function() {
     this.menu.title=this.titles[this.titles.length-1];
@@ -203,10 +247,16 @@ DLNA_Browser.prototype._registerCallbacks = function() {
                 if (selection.url === null) {
                     self.parents.push(selection)
                 } else {
-                    mp.msg.info("Loading " + selection.menuText + ": " + selection.url);
-                    
-                    self.current_index = this.selectionIdx;
+                    mp.msg.info("Loading " + selection.name + ": " + selection.url);
                     mp.commandv("loadfile", selection.url, "replace");
+                    
+                    // Clear the DLNA playlist of playing indicators and replace it with the new playlist
+                    self.playlist.forEach(function(episode){episode.folder.children[episode.id].isPlaying = false});   
+                    self.playlist = [{folder: self.parents[self.parents.length-1],
+                                          id: this.selectionIdx,
+                                         url: selection.url
+                    }];
+                    
                     this.hideMenu();
                     return;
                 }  
@@ -214,9 +264,6 @@ DLNA_Browser.prototype._registerCallbacks = function() {
                 // This should never happen
                 return
             }
-            
-            self.titles.push(selection.menuText);
-            self.generateMenuTitle();
 
 
             // This node has not been loaded before, fetch its children
@@ -251,8 +298,18 @@ DLNA_Browser.prototype._registerCallbacks = function() {
                 }
                 self.parents[self.parents.length-1].children = children;
             }
-                       
-            self.menu.setOptions(self.parents[self.parents.length-1].children, 0);
+            
+            // If the selection has no children then don't bother moving to it
+            if (self.parents[self.parents.length-1].children.length == 0) {
+                self.parents.pop();
+            } else {
+                // Update the title and menu to the new selection
+                self.titles.push(selection.name);
+                self.generateMenuTitle();
+                
+                self.menu.setOptions(self.parents[self.parents.length-1].children, 0);
+            }
+            
             self.menu.renderMenu();
         });
         
@@ -347,5 +404,11 @@ DLNA_Browser.prototype._registerCallbacks = function() {
     // and updating the window title to match the episode title
     mp.register_event("file-loaded", function() {
         browser.on_file_load();
+    });
+    
+    // Handle necessary changes when ending the current file
+    // such as marking it as no longer playing
+    mp.register_event("end-file", function() {
+        browser.on_file_end();
     });
 })();
