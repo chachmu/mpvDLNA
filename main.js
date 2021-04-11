@@ -1,3 +1,5 @@
+// mpvDLNA 1.0.0
+
 "use strict";
 
 mp.module_paths.push(mp.get_script_directory() + "\\modules.js");
@@ -65,6 +67,23 @@ var DLNA_Browser = function(options) {
     
     // List of titles to combine to get the title of the menu
     this.titles = [];
+    
+    
+    
+    // Typing functionality    
+    this.typing_controls = {
+        "ESC" : function(){ mp.msg.error("exit") },
+        "ENTER" : function(){ mp.msg.error("trigger") }
+    };
+    
+    this.typing_keys = [];
+    for (var i = 33; i <= 126; i++) {
+        this.typing_keys.push(String.fromCharCode(i));
+    }
+    
+    this.typing_active = false;
+    this.typing_position = 0;
+    this.typing_text = "";
 };
 
 
@@ -110,6 +129,33 @@ DLNA_Browser.prototype.toggle = function() {
     }
 };
 
+DLNA_Browser.prototype.toggle_typing = function() {
+    
+    if (!this.typing_active) {
+        mp.osd_message("typing active", 10);
+        
+        Object.keys(this.typing_controls).forEach( function(key) {
+            //for key, func in pairs(typerControls) do
+            mp.msg.error("key: "+key);
+            mp.msg.error(this.typing_controls) // This breaks for some reason. Maybe its not declared correctly. Look at how SelectionMenu.js does it
+            mp.add_forced_key_binding(key, "typing_"+key, this.typing_controls[key], {repeatable:true})
+        });
+        /*
+        for i, key in ipairs(typerKeys) do
+            mp.add_forced_key_binding(key, "typer"..key, function() typer(key) end, {repeatable=true})
+        end
+        */
+        
+        this.typing_text = "";
+        this.typing_position = 0;
+        this.typing_active = true;
+        
+    } else {
+        this.typing_active=false;
+    }
+};
+
+
 
 // This function adds the previous and next episodes to the playlist
 DLNA_Browser.prototype.add_surrounding_files = function() {
@@ -118,7 +164,6 @@ DLNA_Browser.prototype.add_surrounding_files = function() {
     if (this.parents.length == 0) {
         return;
     }
-    
     
     var episodes = this.parents[this.parents.length-1].children;    
     var p_index = mp.get_property_number("playlist-playing-pos", 1);       
@@ -344,6 +389,10 @@ DLNA_Browser.prototype._registerCallbacks = function() {
     mp.add_key_binding(null, 'toggle_mpvDLNA', function() {
         browser.toggle();
     });
+    
+    mp.add_key_binding(null, 'type_mpvDLNA', function(){
+        browser.toggle_typing();
+    })
 
     // add the next and previous episode to the playlist
     mp.register_event("file-loaded", function() {
