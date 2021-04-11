@@ -3,6 +3,7 @@
 mp.module_paths.push(mp.get_script_directory() + "\\modules.js");
 var Options = require('Options');
 var SelectionMenu = require('SelectionMenu');
+mp.module_paths.pop();
 
 
 var DLNA_Node = function(name, id) {
