@@ -111,8 +111,10 @@ DLNA_Browser.prototype.toggle = function() {
 };
 
 
-// This function adds the previous and next episodes to the playlist
-DLNA_Browser.prototype.add_surrounding_files = function() {
+// This function adds the previous and next episodes to the playlist,
+// changes the window title to the current episode title, and 
+// updates the now playing indicator
+DLNA_Browser.prototype.on_file_load = function() {
     
     // DLNA isn't being used
     if (this.parents.length == 0) {
@@ -131,6 +133,12 @@ DLNA_Browser.prototype.add_surrounding_files = function() {
             break;
         }
     };
+    
+    // TODO: add code to move a currently playing indicator in the menu
+    //       This will probably also require handling when a file ends
+    
+    // Set the title to match the current episode
+    mp.set_property("force-media-title", episodes[episode_number].menuText);
     
     if (episode_number === null) {
         // The playlist wasn't set up with DLNA browser so we shouldn't modify it
@@ -345,8 +353,10 @@ DLNA_Browser.prototype._registerCallbacks = function() {
         browser.toggle();
     });
 
-    // add the next and previous episode to the playlist
+    // Handle necessary changes when loading the next file
+    // such as adding the next and previous episodes to the playlist
+    // and updating the window title to match the episode title
     mp.register_event("file-loaded", function() {
-        browser.add_surrounding_files();
+        browser.on_file_load();
     });
 })();
