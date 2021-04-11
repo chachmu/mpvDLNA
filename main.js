@@ -69,7 +69,7 @@ var DLNA_Browser = function(options) {
 
 
 DLNA_Browser.prototype.findDLNAServers = function() {
-    mp.msg.error("scanning dlna servers");
+    mp.msg.info("scanning for dlna servers");
     
     // increase the timeout if you have trouble finding a DLNA server that you know is working
     var result = mp.command_native({
@@ -153,12 +153,8 @@ DLNA_Browser.prototype.on_file_load = function() {
             mp.commandv("loadfile", prev, "append");
             // Move the last element in the list (the one we just appended) to in front of the current episode
             mp.commandv("playlist-move", playlist.length, p_index);
-        } else {
-            mp.msg.error("PREVIOUS FILE ALREADY LOADED");
         }
 
-    } else {
-        mp.msg.error("No prev episode");
     }
     
     // If there is a next episode
@@ -169,16 +165,12 @@ DLNA_Browser.prototype.on_file_load = function() {
             mp.commandv("loadfile", next, "append");
             // Move the last element in the list (the one we just appended) to behind the current episode
             mp.commandv("playlist-move", playlist.length, p_index+1);
-        } else {
-            mp.msg.error("NEXT FILE ALREADY LOADED");
         }
-    } else {
-        mp.msg.error("No next episode")
     }
 
 };
 
-DLNA_Browser.prototype.generateTitle = function() {
+DLNA_Browser.prototype.generateMenuTitle = function() {
     this.menu.title=this.titles[this.titles.length-1];
 
     // Already have the first element
@@ -205,16 +197,13 @@ DLNA_Browser.prototype._registerCallbacks = function() {
                 return;
             
             if (selection.type == "server") {
-                mp.msg.error("selected a server");
                 self.parents = [selection];
                 self.titles = [];
             } else if (selection.type == "node") {
                 if (selection.url === null) {
-                    mp.msg.error("selected a container node");
                     self.parents.push(selection)
                 } else {
-                    mp.msg.error("selected an item node")
-                    mp.msg.error(selection.menuText + "  :  " + selection.url);
+                    mp.msg.info("Loading " + selection.menuText + ": " + selection.url);
                     
                     self.current_index = this.selectionIdx;
                     mp.commandv("loadfile", selection.url, "replace");
@@ -223,11 +212,11 @@ DLNA_Browser.prototype._registerCallbacks = function() {
                 }  
             } else {
                 // This should never happen
-                mp.msg.error("someone messed up");
+                return
             }
             
             self.titles.push(selection.menuText);
-            self.generateTitle();
+            self.generateMenuTitle();
 
 
             // This node has not been loaded before, fetch its children
@@ -277,7 +266,7 @@ DLNA_Browser.prototype._registerCallbacks = function() {
                 self.menu.title = "Servers";
             } else {
                 self.menu.setOptions(self.parents[self.parents.length-1].children, 0);
-                self.generateTitle(self.titles[self.titles.length-1]);
+                self.generateMenuTitle(self.titles[self.titles.length-1]);
             }
             
             self.menu.renderMenu();
