@@ -4,6 +4,7 @@
 
 mp.module_paths.push(mp.get_script_directory() + "\\modules.js");
 var Options = require('Options');
+var Ass = require('AssFormat');
 var SelectionMenu = require('SelectionMenu');
 mp.module_paths.pop();
 
@@ -13,7 +14,7 @@ var DLNA_Node = function(name, id) {
     this.id = id;
     this.url = null;
     this.children = null;
-    
+
     this.isPlaying = false;
     this.type = "node";
 };
@@ -24,7 +25,7 @@ var DLNA_Server = function(name, url) {
     this.id = "0"
     this.url = url;
     this.children = null;
-    
+
     this.type = "server"
 };
 
@@ -32,11 +33,11 @@ var DLNA_Server = function(name, url) {
 
 // Class to browse DLNA servers
 var DLNA_Browser = function(options) {
-    
+
     options = options || {};
-    
+
     // --------------------------
-    
+
     this.showHelpHint = typeof options.showHelpHint === 'boolean' ?
         options.showHelpHint : true;
 
@@ -47,57 +48,73 @@ var DLNA_Browser = function(options) {
             keyRebindings: options.keyRebindings
     });
     this.menu.setMetadata({type:null});
-    
+
     this._registerCallbacks();
-    
+
     var self = this;
-    
+
     // Only use menu text colors while mpv is rendering in GUI mode (non-CLI).
     this.menu.setUseTextColors(mp.get_property_bool('vo-configured'));
     mp.observe_property('vo-configured', 'bool', function(name, value) {
         self.menu.setUseTextColors(value);
-    });  
-    
+    });
+
     // determine if we need to scan for DLNA servers next time the browser opens
     this.scan = true;
     this.servers = [];
-    
-    // list of the parents of the current node. 
+
+    // list of the parents of the current node.
     // The first element represents the server we are currently browsing
     // The last element represents the node we are currently on
     this.parents = [];
-    
+
     // List of titles to combine to get the title of the menu
     this.titles = [];
 
+    this.current_folder = [];
+
     // List of nodes added to playlist. Should mirror the MPV internal playlist.
     // This is necessary because in certain edge cases if a user were to be playing
-    // an episode while browsing with the DLNA browser and left the folder that the 
-    // current episodes were in then we wouldn't be able to figure out where the 
+    // an episode while browsing with the DLNA browser and left the folder that the
+    // current episodes were in then we wouldn't be able to figure out where the
     // now playing indicator should be
     this.playlist = [];
     this.playingUrl = null;
 
-    // Typing functionality    
+
+    // Typing functionality
     this.typing_controls = {
-        "ESC" : function(){ mp.msg.error("exit") },
-        "ENTER" : function(){ mp.msg.error("trigger") }
+        "ESC"   : function(self){ self.toggle_typing() },
+        "ENTER" : function(self){ self.typing_parse() },
+        "LEFT"  : function(self){ self.typing_action("left") },
+        "RIGHT" : function(self){ self.typing_action("right") },
+        //"DOWN"  : function(self){ mp.msg.error("down") },//Might leave these unbound since they are
+        //"UP"    : function(self){ mp.msg.error("up") },  //part of the menu navigation
+        "BS"    : function(self){ self.typing_action("backspace") },
+        "DEL"   : function(self){ self.typing_action("delete") },
+        "SPACE" : function(self){ self.typing_action(" ") },
+        "TAB"   : function(self){ self.typing_action("TAB") }
     };
-    
+
     this.typing_keys = [];
     for (var i = 33; i <= 126; i++) {
-        this.typing_keys.push(String.fromCharCode(i));
+         this.typing_keys.push(String.fromCharCode(i));
     }
-    
+
+    this.typing_mode = "text";
+
     this.typing_active = false;
     this.typing_position = 0;
     this.typing_text = "";
+    this.autocomplete = [];
+    this.selected_auto = {id: 0, full: ""};
 };
 
 
 DLNA_Browser.prototype.findDLNAServers = function() {
     mp.msg.info("scanning for dlna servers");
-    
+    this.servers = [];
+
     // Increase the timeout if you have trouble finding a DLNA server that you know is working
     var result = mp.command_native({
         name: "subprocess",
@@ -107,78 +124,249 @@ DLNA_Browser.prototype.findDLNAServers = function() {
     });
 
     var sp = result.stdout.split("\n");
-    
+
     // The first element of sp is not useful here
     for (var i = 1; i < sp.length; i=i+3) {
-        // Need to remove the trailing \n from each entry 
+        // Need to remove the trailing \n from each entry
         var server = new DLNA_Server(sp[i].slice(0, -1), sp[i+1].slice(0, -1));
         this.servers.push(server);
     }
     this.menu.title = "Servers";
+    this.current_folder = this.servers;
     this.menu.setOptions(this.servers, 0);
 };
 
 
 DLNA_Browser.prototype.toggle = function() {
-    
-    // Determine if we need to scan for DLNA servers
-    if (this.scan) {
-        mp.osd_message("Scanning for DLNA Servers", 10);
-        this.findDLNAServers();
-        this.scan = false;
-    }
-    
+
     // Toggle the menu display state.
-    if (this.menu.isMenuActive())
+    if (this.menu.menuActive) {
         this.menu.hideMenu();
-    else {
+    } else {
+
+        // Determine if we need to scan for DLNA servers
+        if (this.scan) {
+            this.menu.title = "Scanning for DLNA Servers";
+            this.menu.renderMenu();
+            this.menu.showMenu();
+
+            this.findDLNAServers();
+            this.scan = false;
+        }
+
         this.menu.renderMenu();
-        this.menu._showMenu();
+        this.menu.showMenu();
     }
 };
 
-DLNA_Browser.prototype.toggle_typing = function() {
-    
+// starts typing and sets mode to either "text" or "command"
+DLNA_Browser.prototype.toggle_typing = function(mode) {
+
     if (!this.typing_active) {
-        mp.osd_message("typing active", 10);
-        
+
+        // if mode command is invalid just leave it on what it was before
+        if (mode == "text" || mode == "command") {
+            this.typing_mode = mode;
+        }
+
+        var self = this;
         Object.keys(this.typing_controls).forEach( function(key) {
-            //for key, func in pairs(typerControls) do
-            mp.msg.error("key: "+key);
-            mp.msg.error(this.typing_controls) // This breaks for some reason. Maybe its not declared correctly. Look at how SelectionMenu.js does it
-            mp.add_forced_key_binding(key, "typing_"+key, this.typing_controls[key], {repeatable:true})
+            mp.add_forced_key_binding(key, "typing_"+key, function(){self.typing_controls[key](self)}, {repeatable:true})
         });
-        /*
-        for i, key in ipairs(typerKeys) do
-            mp.add_forced_key_binding(key, "typer"..key, function() typer(key) end, {repeatable=true})
-        end
-        */
-        
+
+        this.typing_keys.forEach( function(key) {
+            mp.add_forced_key_binding(key, "typing_"+key, function(){self.typing_action(key)}, {repeatable:true})
+        });
+
         this.typing_text = "";
         this.typing_position = 0;
         this.typing_active = true;
-        
+
+        this.menu.showTyping();
+        this.typing_action("");
+
     } else {
         this.typing_active=false;
+        Object.keys(this.typing_controls).forEach( function(key) {
+            mp.remove_key_binding("typing_"+key);
+        });
+
+        this.typing_keys.forEach( function(key) {
+            mp.remove_key_binding("typing_"+key);
+        });
+
+        this.menu.hideTyping();
+    }
+};
+
+DLNA_Browser.prototype.typing_action = function(key) {
+    if (key == "backspace") {
+        this.typing_text = this.typing_text.slice(0, this.typing_position-1)
+            + this.typing_text.slice(this.typing_position);
+        this.typing_position-=1;
+
+    } else if (key == "delete") {
+        this.typing_text = this.typing_text.slice(0, this.typing_position)
+            + this.typing_text.slice(this.typing_position+1);
+
+    } else if (key == "right") {
+        this.typing_position += 1;
+        if (this.typing_position > this.typing_text.length) {
+            this.typing_position = 0;
+        }
+
+    } else if (key == "left") {
+        this.typing_position -= 1;
+        if (this.typing_position < 0) {
+            this.typing_position = this.typing_text.length;
+        }
+
+    } else if (key == "TAB") {
+        this.selected_auto.id++;
+        if (this.selected_auto.id >= this.autocomplete.length) {
+            this.selected_auto.id = 0;
+        }
+        this.selected_auto.full = this.autocomplete[this.selected_auto.id].full;
+        mp.msg.error("auto_index: " + this.selected_auto.id);
+
+    } else if (key == "clear"){
+        this.typing_text = "";
+        this.typing_position = 0;
+        this.autocomplete = [];
+        this.selected_auto = {id: 0, full: ""};
+
+    } else if (key.length == 1){
+        // "\" does not play nicely with the formatting characters in the osd message
+        if (key != "\\") {
+            this.typing_text = this.typing_text.slice(0, this.typing_position)
+                + key +  this.typing_text.slice(this.typing_position);
+            this.typing_position+=1;
+        }
+    }
+
+    var message = "";
+    message += Ass.white(true) + this.typing_text.slice(0, this.typing_position);
+    message += Ass.yellow(true) + "|";
+    message += Ass.white(true) + this.typing_text.slice(this.typing_position);
+
+    // Use command mode autocorrect. This hasn't been implemented yet
+    if (this.typing_mode == "command") {
+        message = "$ " + message;
+
+    // Use text mode autocorrect. This will probably be broken out into a function at some point
+    } else if (this.typing_mode == "text") {
+
+        this.autocomplete = [];
+        for (var i = 0; i < this.current_folder.length; i++) {
+            var item = this.current_folder[i];
+            var index = item.name.toUpperCase().indexOf(this.typing_text.toUpperCase())
+
+            if ((item.children == null || item.children.length != 0) && index != -1) {
+                this.autocomplete.push({
+                    pre:  item.name.slice(0, index),
+                    post: item.name.slice(index + this.typing_text.length),
+                    full: item.name
+                });
+            }
+        }
+
+        if (this.autocomplete.length > 0) {
+            var search = this.selected_auto.full;
+            this.selected_auto = {id: 0, full: this.autocomplete[0].full};
+
+            for (var i = 0; i < this.autocomplete.length; i++) {
+                if (search == this.autocomplete[i].full) {
+                    this.selected_auto = {id: i, full: this.autocomplete[i].full};
+                    break;
+                }
+            }
+
+            message = Ass.alpha("DDDD6E") + this.autocomplete[this.selected_auto.id].pre
+            + Ass.alpha("00") + message + Ass.alpha("DDDD6E") + this.autocomplete[this.selected_auto.id].post;
+        } else {
+            this.selected_auto = {id: 0, full:""};
+        }
+    }
+
+    message = Ass.startSeq(true) + message + Ass.stopSeq(true);
+    this.menu.typingText = message;
+    this.menu._renderActiveText();
+};
+
+// Try to find a valid command or folder
+DLNA_Browser.prototype.typing_parse = function() {
+    var success = false;
+
+    // Planned Commands (more to come)
+    //      search - Either query the DLNA server if thats possible or just manually search
+    //      cd - exactly the same as what text mode does now
+    //      play - this might be replaced with just trying to cd into a media file
+    //      ep - find episode by number (maybe have option for absolute episode number instead of just its place in a season)
+    //      pep - ep but starts playback
+    //      info - query DLNA server for metadata
+
+    if (this.typing_mode == "command") {
+        if (this.typing_text == "scan") {
+            if (this.menu.menuActive){
+                this.menu.title = "Scanning for DLNA Servers";
+                this.menu.renderMenu();
+                this.menu.showMenu();
+            }
+
+            this.scan = false;
+            this.findDLNAServers();
+            success = true;
+
+            if (this.menu.menuActive){
+                this.menu.renderMenu();
+                this.menu.showMenu();
+            }
+        }
+    } else if (this.typing_mode == "text") {
+        if (this.typing_text.length == 0) {
+            success = this.select(this.menu.getSelectedItem());
+
+        } else if(this.typing_text == "..") {
+            this.back();
+        }else {
+            var search = this.typing_text;
+            if (this.autocomplete.length != 0) {
+                search = this.selected_auto.full;
+            }
+
+            for (var i = 0; i < this.current_folder.length; i++) {
+                var item = this.current_folder[i];
+
+                if (search == item.name) {
+                    success = this.select(item);
+                }
+            }
+        }
+    }
+
+    if (success) {
+        this.typing_action("clear");
+    } else {
+        // Rescan for autocomplete
+        this.typing_action("");
     }
 };
 
 
-
 // This function adds the previous and next episodes to the playlist,
-// changes the window title to the current episode title, and 
+// changes the window title to the current episode title, and
 // updates the now playing indicator
 DLNA_Browser.prototype.on_file_load = function() {
-    
+
     // DLNA isn't being used
     if (this.playlist.length == 0) {
         return;
     }
 
 
-    var p_index = mp.get_property_number("playlist-playing-pos", 1);       
+    var p_index = mp.get_property_number("playlist-playing-pos", 1);
     var playlist = mp.get_property_native("playlist", {});
-    
+
     var episode_number = null
     for (var i = 0; i < this.playlist.length; i++) {
         if (this.playlist[i].url == playlist[p_index].filename) {
@@ -186,54 +374,54 @@ DLNA_Browser.prototype.on_file_load = function() {
             break;
         }
     };
-    
+
     if (episode_number === null) {
         mp.msg.warn("The DLNA playlist is not properly synced with the internal MPV playlist");
         return
     }
-    
+
     var episode = this.playlist[episode_number];
     var folder = episode.folder.children; // The code below is very confusing if you forget that folder != episode.folder
-    
-    
+
+
     // Update the now playing indicator and rerender the menu if necessary
     folder[episode.id].isPlaying = true;
     if (this.menu.isMenuActive()) {
         this.menu.renderMenu();
     }
-    
+
     // Set the title to match the current episode
     mp.set_property("force-media-title", episode.folder.name + ":   " + folder[episode.id].name);
     this.playingUrl = episode.url;
-    
-    
+
+
     // If there is a previous episode
     if (episode.id - 1 >= 0) {
         // and the playlist entry before this one either doesn't exist or isn't the previous episode
         if (p_index-1 < 0 || playlist[p_index-1].filename != folder[episode.id-1].url) {
             var prev = folder[episode.id-1];
             mp.commandv("loadfile", prev.url, "append");
-            
+
             // Move the last element in the list (the one we just appended) to in front of the current episode
             mp.commandv("playlist-move", playlist.length, p_index);
-            
+
             this.playlist.push({ folder: episode.folder,
                                      id: episode.id-1,
                                     url: prev.url
             });
         }
     }
-    
+
     // If there is a next episode
     if (episode.id + 1 < folder.length) {
         // and the playlist entry after this one either doesn't exist or isn't the next episode
         if (p_index+1 >= playlist.length || playlist[p_index+1].filename != folder[episode.id+1].url) {
             var next = folder[episode.id+1];
             mp.commandv("loadfile", next.url, "append");
-            
+
             // Move the last element in the list (the one we just appended) to behind the current episode
             mp.commandv("playlist-move", playlist.length, p_index+1);
-            
+
             this.playlist.push({ folder: episode.folder,
                                      id: episode.id+1,
                                     url: next.url
@@ -268,7 +456,7 @@ DLNA_Browser.prototype.generateMenuTitle = function() {
         // Condense repeat menu titles by only using the more specific one
         if (this.titles[i+1].indexOf(this.titles[i]) == -1) {
             this.menu.title = this.titles[i] + " / " + this.menu.title;
-            
+
             if (this.menu.title.length > 90) {
                 this.menu.title = this.menu.title.slice(this.titles[i].length + 3, this.menu.title.length);
                 break;
@@ -277,103 +465,122 @@ DLNA_Browser.prototype.generateMenuTitle = function() {
     }
 };
 
+
+DLNA_Browser.prototype.select = function(selection) {
+    if (!selection)
+        return false;
+
+    if (selection.type == "server") {
+        this.parents = [selection];
+        this.titles = [];
+    } else if (selection.type == "node") {
+        if (selection.url === null) {
+            this.parents.push(selection)
+        } else {
+            mp.msg.info("Loading " + selection.name + ": " + selection.url);
+            mp.commandv("loadfile", selection.url, "replace");
+
+            // Clear the DLNA playlist of playing indicators and replace it with the new playlist
+            this.playlist.forEach(function(episode){episode.folder.children[episode.id].isPlaying = false});
+            this.playlist = [{folder: this.parents[this.parents.length-1],
+                                  id: this.parents[this.parents.length-1].children.indexOf(selection),
+                                 url: selection.url
+            }];
+
+            this.menu.hideMenu();
+            return true;
+        }
+    } else {
+        // This should never happen
+        return false;
+    }
+
+
+    // This node has not been loaded before, fetch its children
+    if (this.parents[this.parents.length-1].children === null) {
+        var result = mp.command_native({
+            name: "subprocess",
+            playback_only: false,
+            capture_stdout: true,
+            args : ["python", mp.get_script_directory()+"\\mpvDLNA.py", "-b", this.parents[0].url, selection.id]
+        });
+
+        var sp = result.stdout.split("\n");
+
+        // Tells us if we are getting item or container type data
+        var is_item = sp[0].slice(0, -1)=="item";
+        var increase = (is_item ? 4 : 3);
+        var max_length = (is_item ? 1 : 2)
+
+        var children = [];
+
+        // The first 2 elements of sp are not useful here
+        for (var i = 2; i+max_length < sp.length; i=i+increase) {
+
+            // Need to remove the trailing \n from each entry
+            var child = new DLNA_Node(sp[i].slice(0, -1), sp[i+1].slice(0, -1));
+
+            if (is_item) {
+                child.url = sp[i+2].slice(0,-1);
+            }
+
+            children.push(child);
+        }
+        this.parents[this.parents.length-1].children = children;
+    }
+
+    var success = false;
+
+    // If the selection has no children then don't bother moving to it
+    if (this.parents[this.parents.length-1].children.length == 0) {
+        this.parents.pop();
+    } else {
+        // Update the title and menu to the new selection
+        this.titles.push(selection.name);
+        this.generateMenuTitle();
+
+        this.current_folder = this.parents[this.parents.length-1].children;
+        this.menu.setOptions(this.parents[this.parents.length-1].children, 0);
+        success = true;
+    }
+
+    if (this.menu.menuActive) {
+        this.menu.renderMenu();
+    }
+
+    return success;
+}
+
+DLNA_Browser.prototype.back = function() {
+    this.parents.pop();
+    this.titles.pop();
+
+    if (this.parents.length == 0) {
+        this.menu.setOptions(this.servers, 0);
+        this.menu.title = "Servers";
+    } else {
+        this.current_folder = this.parents[this.parents.length-1].children;
+        this.menu.setOptions(this.parents[this.parents.length-1].children, 0);
+        this.generateMenuTitle(this.titles[this.titles.length-1]);
+    }
+
+    if (this.menu.isMenuActive()) {
+        this.menu.renderMenu();
+    }
+}
+
 DLNA_Browser.prototype._registerCallbacks = function() {
-    
+
     var self = this; // Inside the callbacks this will end up referring to menu instead of DLNA_Browser
-    
+
     this.menu.setCallbackMenuOpen(function() {
-            var selection = self.menu.getSelectedItem();
-            if (!selection)
-                return;
-            
-            if (selection.type == "server") {
-                self.parents = [selection];
-                self.titles = [];
-            } else if (selection.type == "node") {
-                if (selection.url === null) {
-                    self.parents.push(selection)
-                } else {
-                    mp.msg.info("Loading " + selection.name + ": " + selection.url);
-                    mp.commandv("loadfile", selection.url, "replace");
-                    
-                    // Clear the DLNA playlist of playing indicators and replace it with the new playlist
-                    self.playlist.forEach(function(episode){episode.folder.children[episode.id].isPlaying = false});   
-                    self.playlist = [{folder: self.parents[self.parents.length-1],
-                                          id: this.selectionIdx,
-                                         url: selection.url
-                    }];
-                    
-                    this.hideMenu();
-                    return;
-                }  
-            } else {
-                // This should never happen
-                return
-            }
+         self.select(this.getSelectedItem());
+    });
 
 
-            // This node has not been loaded before, fetch its children
-            if (self.parents[self.parents.length-1].children === null) {
-                var result = mp.command_native({
-                    name: "subprocess",
-                    playback_only: false,
-                    capture_stdout: true,
-                    args : ["python", mp.get_script_directory()+"\\mpvDLNA.py", "-b", self.parents[0].url, selection.id]
-                });
-                
-                var sp = result.stdout.split("\n");
-                
-                // Tells us if we are getting item or container type data
-                var is_item = sp[0].slice(0, -1)=="item";
-                var increase = (is_item ? 4 : 3);
-                var max_length = (is_item ? 1 : 2)
-                
-                var children = [];
-                
-                // The first 2 elements of sp are not useful here
-                for (var i = 2; i+max_length < sp.length; i=i+increase) {
-                    
-                    // Need to remove the trailing \n from each entry 
-                    var child = new DLNA_Node(sp[i].slice(0, -1), sp[i+1].slice(0, -1));
-                    
-                    if (is_item) {
-                        child.url = sp[i+2].slice(0,-1);
-                    }
-                    
-                    children.push(child);
-                }
-                self.parents[self.parents.length-1].children = children;
-            }
-            
-            // If the selection has no children then don't bother moving to it
-            if (self.parents[self.parents.length-1].children.length == 0) {
-                self.parents.pop();
-            } else {
-                // Update the title and menu to the new selection
-                self.titles.push(selection.name);
-                self.generateMenuTitle();
-                
-                self.menu.setOptions(self.parents[self.parents.length-1].children, 0);
-            }
-            
-            self.menu.renderMenu();
-        });
-        
-        
-        this.menu.setCallbackMenuLeft(function() {
-            self.parents.pop();
-            self.titles.pop();
-            
-            if (self.parents.length == 0) {
-                self.menu.setOptions(self.servers, 0);
-                self.menu.title = "Servers";
-            } else {
-                self.menu.setOptions(self.parents[self.parents.length-1].children, 0);
-                self.generateMenuTitle(self.titles[self.titles.length-1]);
-            }
-            
-            self.menu.renderMenu();
-        });
+    this.menu.setCallbackMenuLeft(function() {
+        self.back();
+    });
 };
 
 
@@ -444,9 +651,13 @@ DLNA_Browser.prototype._registerCallbacks = function() {
     mp.add_key_binding(null, 'toggle_mpvDLNA', function() {
         browser.toggle();
     });
-    
-    mp.add_key_binding(null, 'type_mpvDLNA', function(){
-        browser.toggle_typing();
+
+    mp.add_key_binding(null, 'text_mpvDLNA', function(){
+        browser.toggle_typing("text");
+    })
+
+    mp.add_key_binding(null, 'command_mpvDLNA', function(){
+        browser.toggle_typing("command");
     })
 
     // Handle necessary changes when loading the next file
@@ -455,7 +666,7 @@ DLNA_Browser.prototype._registerCallbacks = function() {
     mp.register_event("file-loaded", function() {
         browser.on_file_load();
     });
-    
+
     // Handle necessary changes when ending the current file
     // such as marking it as no longer playing
     mp.register_event("end-file", function() {
