@@ -15,6 +15,11 @@
 
 /* This is a modified version of the SelectionMenu module from VideoPlayerCode
    that has been changed to better work with the mpvDLNA plugin.
+
+   Specifically it has additional support for:
+        Coloring empty folders red
+        Displaying an indicator on currently playing entries
+        Displaying a text input system
 */
 
 
@@ -53,6 +58,10 @@ var SelectionMenu = function(settings)
     this.hasRegisteredKeys = false; // Also means that menu is active/open.
     this.useTextColors = true;
     this.currentMenuText = '';
+    this.typingText = '';
+    this.active = false; // Menu is visible
+    this.menuActive = false; // the menu portion of the UI is active
+    this.typingActive = false; // the typing portion of the UI is active
     this.isShowingMessage = false;
     this.currentMessageText = '';
     this.menuInterval = null;
@@ -186,7 +195,7 @@ SelectionMenu.prototype.setUseTextColors = function(value)
 
 SelectionMenu.prototype.isMenuActive = function()
 {
-    return this.hasRegisteredKeys; // If keys are registered, menu is active.
+    return this.active;
 };
 
 SelectionMenu.prototype.getSelectedItem = function()
@@ -363,13 +372,41 @@ SelectionMenu.prototype._handleAutoClose = function()
 
 SelectionMenu.prototype._renderActiveText = function()
 {
-    if (!this.isMenuActive())
+    // If nothing is supposed to be showing
+    if (!this.active)
         return;
 
-    // Determine which text to render (critical messages take precedence).
-    var msg = this.isShowingMessage ? this.currentMessageText : this.currentMenuText;
+    if (this.menuActive) {
+        // Determine which text to render (critical messages take precedence).
+        var msg = this.isShowingMessage ? this.currentMessageText : this.currentMenuText;
+    }
+
     if (typeof msg !== 'string')
         msg = '';
+
+    // Append the typing display to the correct location in the message
+    if (this.typingActive) {
+        var newlines = (this.menuActive) ? 3 : 2;
+        newlines += this.maxLines - msg.split("\n").length;
+
+        msg += Ass.startSeq(true) + Ass.alpha("FF", true);
+        // Make sure we get aligned properly
+        for (var i = 0; i < newlines; i++) {
+            msg += "-\n";
+        }
+
+        // This spacing is annoyingly fiddly
+        if (!this.menuActive)
+            msg+="\n";
+
+        msg += Ass.alpha("00", true);
+        msg += "--------------\n";
+
+        msg += Ass.stopSeq(true);
+        msg += this.typingText;
+
+    }
+
 
     // Tell mpv's OSD to show the text. It will automatically be replaced and
     // refreshed every second while the menu remains open, to ensure that
@@ -419,12 +456,12 @@ SelectionMenu.prototype.renderMenu = function(selectionPrefix, renderMode)
                 // NOTE: Prefix stays on screen until cursor-move or re-render.z
                 finalString += Ass.yellow(c)+'> '+(typeof selectionPrefix === 'string' ?
                                                    Ass.esc(selectionPrefix, c)+' ' : '');
-            
+
             // If the menu option has no children to move to
             // then it should be colored red and ignored
             if (opt.children != null && opt.children.length == 0)
                 finalString += Ass.color("FF0000", c);
-            
+
             finalString += (
                 i === startIdx && startIdx > 0 ? '...' :
                     (
@@ -434,11 +471,11 @@ SelectionMenu.prototype.renderMenu = function(selectionPrefix, renderMode)
                         )
                     )
             );
-            
+
             // Display the now playing indicator
             if (opt.isPlaying)
                 finalString += " <==";
-            
+
             if (i === this.selectionIdx || (opt.children != null && opt.children.length == 0))
                 finalString += Ass.white(c);
             if (i !== endIdx)
@@ -460,17 +497,17 @@ SelectionMenu.prototype.renderMenu = function(selectionPrefix, renderMode)
     // (incl. undefined, aka default) = show/redraw the menu.
     if ((renderMode === 1 && (!this.isMenuActive() || this.isShowingMessage)) || renderMode === 2)
         return;
-    this._showMenu();
+    this.showMenu();
 };
 
-SelectionMenu.prototype._showMenu = function()
-{
+
+SelectionMenu.prototype.show = function() {
     var justOpened = false;
     if (!this.isMenuActive()) {
         justOpened = true;
         this.originalFontSize = mp.get_property_number('osd-font-size');
         mp.set_property('osd-font-size', this.menuFontSize);
-        this._registerMenuKeys();
+
 
         // Redraw the currently active text every second and do periodic tasks.
         // NOTE: This prevents other OSD scripts from removing our menu text.
@@ -499,17 +536,14 @@ SelectionMenu.prototype._showMenu = function()
         // Force an update/unlock of the activity timeout when menu opens.
         this._updateAutoCloseTimeout(true); // Hard-update.
     }
-};
 
-SelectionMenu.prototype.hideMenu = function()
-{
-    if (!this.isMenuActive())
-        return;
+    this.active = true;
+}
 
+SelectionMenu.prototype.hide = function() {
     mp.osd_message('');
     if (this.originalFontSize !== null)
         mp.set_property('osd-font-size', this.originalFontSize);
-    this._unregisterMenuKeys();
     if (this.menuInterval !== null) {
         clearInterval(this.menuInterval);
         this.menuInterval = null;
@@ -521,6 +555,58 @@ SelectionMenu.prototype.hideMenu = function()
     // Run "menu hide" callback if registered.
     if (typeof this.cbMenuHide === 'function')
         this.cbMenuHide('Menu-Hide');
+
+    this.active = false;
+}
+
+SelectionMenu.prototype.showMenu = function()
+{
+    if (!this.menuActive) {
+        this.menuActive = true;
+        this._registerMenuKeys();
+    }
+
+    if (!this.active)
+        this.show();
+    else
+        this._renderActiveText();
+};
+
+SelectionMenu.prototype.hideMenu = function()
+{
+    if (this.menuActive) {
+        this.menuActive = false;
+        this._unregisterMenuKeys();
+    }
+
+    if (this.active && !this.typingActive)
+        this.hide();
+    else
+        this._renderActiveText();
+};
+
+SelectionMenu.prototype.showTyping = function()
+{
+    this.typingActive = true;
+
+    if (!this.active)
+        this.show();
+    else
+        this._renderActiveText();
+};
+
+SelectionMenu.prototype.hideTyping = function()
+{
+    this.typingActive = false;
+
+    if (this.active && !this.menuActive)
+        this.hide();
+    else
+        this._renderActiveText();
+
+    if (this.menuActive) {
+        this._registerMenuKeys();
+    }
 };
 
 SelectionMenu.prototype.showMessage = function(msg, durationMs, clearSelectionPrefix)
