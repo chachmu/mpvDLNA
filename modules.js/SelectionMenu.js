@@ -376,10 +376,8 @@ SelectionMenu.prototype._renderActiveText = function()
     if (!this.active)
         return;
 
-    if (this.menuActive) {
-        // Determine which text to render (critical messages take precedence).
-        var msg = this.isShowingMessage ? this.currentMessageText : this.currentMenuText;
-    }
+    // Determine which text to render (critical messages take precedence).
+    var msg = this.isShowingMessage ? this.currentMessageText : (this.menuActive ? this.currentMenuText : '');
 
     if (typeof msg !== 'string')
         msg = '';
@@ -495,7 +493,7 @@ SelectionMenu.prototype.renderMenu = function(selectionPrefix, renderMode)
     // the menu is closed or busy showing a text message); 2 = Don't show/redraw
     // at all (good for just updating the text cache silently); any other value
     // (incl. undefined, aka default) = show/redraw the menu.
-    if ((renderMode === 1 && (!this.isMenuActive() || this.isShowingMessage)) || renderMode === 2)
+    if ((renderMode === 1 && (!this.menuActive || this.isShowingMessage)) || renderMode === 2)
         return;
     this.showMenu();
 };
@@ -568,8 +566,8 @@ SelectionMenu.prototype.showMenu = function()
 
     if (!this.active)
         this.show();
-    else
-        this._renderActiveText();
+
+    this._renderActiveText();
 };
 
 SelectionMenu.prototype.hideMenu = function()
@@ -591,8 +589,8 @@ SelectionMenu.prototype.showTyping = function()
 
     if (!this.active)
         this.show();
-    else
-        this._renderActiveText();
+
+    this._renderActiveText();
 };
 
 SelectionMenu.prototype.hideTyping = function()

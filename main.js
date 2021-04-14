@@ -1,4 +1,4 @@
-// mpvDLNA 1.0.0
+// mpvDLNA 1.1.0
 
 "use strict";
 
@@ -108,10 +108,35 @@ var DLNA_Browser = function(options) {
     this.typing_text = "";
     this.autocomplete = [];
     this.selected_auto = {id: 0, full: ""};
+
+    this.commands = {
+        "scan" : { func: function(self){ self.menu.showMessage("Scanning");
+                                         self.findDLNAServers();
+                                         self.menu.showMessage("Scan Complete"); },
+                   args: [],
+                   text: false},
+
+        "cd"   : { func: function(self, file) { self.command_cd(file); },
+                   args: [],
+                   text: true},
+
+        "test" : { func: function(self, file){ mp.msg.error("test"); },
+                   args: [],
+                   text: true}
+    };
+    this.command_list = Object.keys(this.commands);
+
+    // String key of the current command
+    this.command = null;
 };
 
 
 DLNA_Browser.prototype.findDLNAServers = function() {
+    this.scan = false;
+    this.menu.title = "Scanning for DLNA Servers";
+    this.menu.renderMenu("", 1);
+
+
     mp.msg.info("scanning for dlna servers");
     this.servers = [];
 
@@ -134,6 +159,8 @@ DLNA_Browser.prototype.findDLNAServers = function() {
     this.menu.title = "Servers";
     this.current_folder = this.servers;
     this.menu.setOptions(this.servers, 0);
+
+    this.menu.renderMenu("", 1);
 };
 
 
@@ -143,19 +170,12 @@ DLNA_Browser.prototype.toggle = function() {
     if (this.menu.menuActive) {
         this.menu.hideMenu();
     } else {
-
+        this.menu.showMenu();
         // Determine if we need to scan for DLNA servers
         if (this.scan) {
             this.menu.title = "Scanning for DLNA Servers";
-            this.menu.renderMenu();
-            this.menu.showMenu();
-
             this.findDLNAServers();
-            this.scan = false;
         }
-
-        this.menu.renderMenu();
-        this.menu.showMenu();
     }
 };
 
@@ -200,14 +220,47 @@ DLNA_Browser.prototype.toggle_typing = function(mode) {
 };
 
 DLNA_Browser.prototype.typing_action = function(key) {
-    if (key == "backspace") {
-        this.typing_text = this.typing_text.slice(0, this.typing_position-1)
+
+    if (key.length == 1){
+        // "\" does not play nicely with the formatting characters in the osd message
+        if (key != "\\") {
+            this.typing_text = this.typing_text.slice(0, this.typing_position)
+                + key +  this.typing_text.slice(this.typing_position);
+            this.typing_position+=1;
+        }
+    } else if (key == "backspace") {
+        // can't backspace if at the start of the line
+        if (this.typing_position) {
+            this.typing_text = this.typing_text.slice(0, this.typing_position-1)
             + this.typing_text.slice(this.typing_position);
-        this.typing_position-=1;
+
+            this.typing_position-= 1;
+        }
+
+        if (this.typing_mode == "command" && this.command != null) {
+            if (this.typing_position <= this.command.length) {
+                this.command = null;
+            }
+        }
 
     } else if (key == "delete") {
         this.typing_text = this.typing_text.slice(0, this.typing_position)
             + this.typing_text.slice(this.typing_position+1);
+
+        if (this.typing_mode == "command" && this.command != null) {
+            if (this.typing_position <= this.command.length) {
+                this.command = null;
+
+                // Because we autoadd a space when completing a command and because
+                // using delete means the cursor is not next to it, the space becomes
+                // almost impossible to find. I wrote this code and still thought it
+                // was a bug when the invisible space character supressed the autocorrect
+                // Much easier for users to just not have to deal with it
+                if (this.typing_text[this.typing_text.length-1] == " ") {
+                    this.typing_text = this.typing_text.slice(0, -1);
+                }
+            }
+        }
 
     } else if (key == "right") {
         this.typing_position += 1;
@@ -226,8 +279,10 @@ DLNA_Browser.prototype.typing_action = function(key) {
         if (this.selected_auto.id >= this.autocomplete.length) {
             this.selected_auto.id = 0;
         }
-        this.selected_auto.full = this.autocomplete[this.selected_auto.id].full;
-        mp.msg.error("auto_index: " + this.selected_auto.id);
+
+        if (this.autocomplete.length) {
+            this.selected_auto.full = this.autocomplete[this.selected_auto.id].full;
+        }
 
     } else if (key == "clear"){
         this.typing_text = "";
@@ -235,13 +290,6 @@ DLNA_Browser.prototype.typing_action = function(key) {
         this.autocomplete = [];
         this.selected_auto = {id: 0, full: ""};
 
-    } else if (key.length == 1){
-        // "\" does not play nicely with the formatting characters in the osd message
-        if (key != "\\") {
-            this.typing_text = this.typing_text.slice(0, this.typing_position)
-                + key +  this.typing_text.slice(this.typing_position);
-            this.typing_position+=1;
-        }
     }
 
     var message = "";
@@ -249,43 +297,40 @@ DLNA_Browser.prototype.typing_action = function(key) {
     message += Ass.yellow(true) + "|";
     message += Ass.white(true) + this.typing_text.slice(this.typing_position);
 
-    // Use command mode autocorrect. This hasn't been implemented yet
+    // Use command mode autocorrect.
     if (this.typing_mode == "command") {
+
+        // Look for a valid command
+        if (this.command == null) {
+            if (this.typing_text[this.typing_text.length-1] == " ") {
+                var search = this.selected_auto.full;
+
+                for (var i = 0; i < this.command_list.length; i++) {
+                    if (this.command_list[i].toUpperCase() == search.toUpperCase()) {
+                        this.command = this.command_list[i];
+                        break;
+                    }
+                }
+
+            // autocomplete the command
+            } else {
+                message = this.autocomplete_command(this.typing_text, message);
+            }
+        }
+
+        // Have a valid command, autocomplete the argument
+        if (this.command){
+            var argument = this.typing_text.slice(this.typing_text.split(" ")[0].length+1);
+            var index = message.split(" ")[0].length+1;
+            var msg = message.slice(index);
+            message = message.slice(0, index) + this.autocomplete_text(argument, msg);
+        }
+
         message = "$ " + message;
 
-    // Use text mode autocorrect. This will probably be broken out into a function at some point
+    // Use text mode autocorrect.
     } else if (this.typing_mode == "text") {
-
-        this.autocomplete = [];
-        for (var i = 0; i < this.current_folder.length; i++) {
-            var item = this.current_folder[i];
-            var index = item.name.toUpperCase().indexOf(this.typing_text.toUpperCase())
-
-            if ((item.children == null || item.children.length != 0) && index != -1) {
-                this.autocomplete.push({
-                    pre:  item.name.slice(0, index),
-                    post: item.name.slice(index + this.typing_text.length),
-                    full: item.name
-                });
-            }
-        }
-
-        if (this.autocomplete.length > 0) {
-            var search = this.selected_auto.full;
-            this.selected_auto = {id: 0, full: this.autocomplete[0].full};
-
-            for (var i = 0; i < this.autocomplete.length; i++) {
-                if (search == this.autocomplete[i].full) {
-                    this.selected_auto = {id: i, full: this.autocomplete[i].full};
-                    break;
-                }
-            }
-
-            message = Ass.alpha("DDDD6E") + this.autocomplete[this.selected_auto.id].pre
-            + Ass.alpha("00") + message + Ass.alpha("DDDD6E") + this.autocomplete[this.selected_auto.id].post;
-        } else {
-            this.selected_auto = {id: 0, full:""};
-        }
+        message = this.autocomplete_text(this.typing_text, message);
     }
 
     message = Ass.startSeq(true) + message + Ass.stopSeq(true);
@@ -304,53 +349,159 @@ DLNA_Browser.prototype.typing_parse = function() {
     //      ep - find episode by number (maybe have option for absolute episode number instead of just its place in a season)
     //      pep - ep but starts playback
     //      info - query DLNA server for metadata
+    //      text - switch to text input mode
 
     if (this.typing_mode == "command") {
-        if (this.typing_text == "scan") {
-            if (this.menu.menuActive){
-                this.menu.title = "Scanning for DLNA Servers";
-                this.menu.renderMenu();
-                this.menu.showMenu();
-            }
 
-            this.scan = false;
-            this.findDLNAServers();
-            success = true;
-
-            if (this.menu.menuActive){
-                this.menu.renderMenu();
-                this.menu.showMenu();
-            }
-        }
-    } else if (this.typing_mode == "text") {
-        if (this.typing_text.length == 0) {
-            success = this.select(this.menu.getSelectedItem());
-
-        } else if(this.typing_text == "..") {
-            this.back();
-        }else {
-            var search = this.typing_text;
+        // This flag is used to make sure we don't accidentally autocomplete the command
+        // and the arguments in a single enter keystroke
+        var text_input = false;
+        if (this.command == null) {
+            text_input = true;
             if (this.autocomplete.length != 0) {
-                search = this.selected_auto.full;
-            }
+                this.command = this.selected_auto.full
+                this.typing_text = this.selected_auto.full + " ";
+                this.typing_position = this.typing_text.length;
 
-            for (var i = 0; i < this.current_folder.length; i++) {
-                var item = this.current_folder[i];
-
-                if (search == item.name) {
-                    success = this.select(item);
-                }
+                text_input = this.commands[this.command].text;
             }
         }
+
+        if (this.command != null && !text_input) {
+            var cmd = this.commands[this.command];
+
+            if ( (!cmd.text && cmd.args.length == 0) || this.autocomplete.length != 0) {
+                this.commands[this.command].func(this, this.selected_auto.full);
+                success = true;
+            }
+        }
+
+    } else if (this.typing_mode == "text") {
+        success = this.command_cd(this.typing_text);
     }
 
     if (success) {
+        this.command = null;
         this.typing_action("clear");
     } else {
         // Rescan for autocomplete
         this.typing_action("");
     }
 };
+
+DLNA_Browser.prototype.autocomplete_command = function(text, message) {
+    this.autocomplete = [];
+
+    if (text == "") {
+        this.selected_auto = {id: null, full: ""};
+        return message;
+    }
+
+    for (var i = 0; i < this.command_list.length; i++) {
+        var index = this.command_list[i].toUpperCase().indexOf(text.toUpperCase());
+
+        if (index != -1) {
+            this.autocomplete.push({
+                 pre:  this.command_list[i].slice(0, index),
+                post: this.command_list[i].slice(index + text.length),
+                full: this.command_list[i],
+            });
+        }
+    }
+
+    if (this.autocomplete.length > 0) {
+        var search = this.selected_auto.full;
+        this.selected_auto = this.autocomplete[0];
+        this.selected_auto.id = 0;
+
+        for (var i = 0; i < this.autocomplete.length; i++) {
+            if (search == this.autocomplete[i].full) {
+                this.selected_auto = this.autocomplete[i];
+                this.selected_auto.id = i;
+                break;
+            }
+        }
+
+        message = Ass.alpha("DDDD6E") + this.selected_auto.pre
+        + Ass.alpha("00") + message + Ass.alpha("DDDD6E") + this.selected_auto.post;
+    } else {
+        this.selected_auto = {id: null, full: ""};
+    }
+
+    return message;
+}
+
+DLNA_Browser.prototype.autocomplete_text = function(text, message) {
+    this.autocomplete = [];
+
+    // add ".." to the list of autocomplete options
+    var options = this.current_folder.concat({name: ".."});
+
+    for (var i = 0; i < options.length; i++) {
+        var item = options[i];
+        var index = item.name.toUpperCase().indexOf(text.toUpperCase());
+
+        if ((item.children == null || item.children.length != 0) && index != -1) {
+            this.autocomplete.push({
+                 pre:  item.name.slice(0, index),
+                post: item.name.slice(index + text.length),
+                full: item.name,
+              findex: i
+            });
+        }
+    }
+
+    if (this.autocomplete.length > 0) {
+        var search = this.selected_auto.full;
+        this.selected_auto = this.autocomplete[0];
+        this.selected_auto.id = 0
+
+        for (var i = 0; i < this.autocomplete.length; i++) {
+            if (search == this.autocomplete[i].full) {
+                this.selected_auto = this.autocomplete[i];
+                this.selected_auto.id = i;
+
+                break;
+            }
+        }
+
+        // Update the menu selection to match
+        this.menu.selectionIdx = this.selected_auto.findex;
+        this.menu.renderMenu("", 1);
+
+        message = Ass.alpha("DDDD6E") + this.selected_auto.pre
+        + Ass.alpha("00") + message + Ass.alpha("DDDD6E") + this.selected_auto.post;
+    } else {
+        this.selected_auto = {id: 0, full: ""};
+    }
+
+    return message;
+}
+
+
+DLNA_Browser.prototype.command_cd = function(text) {
+    var success = false;
+    if(text == "..") {
+        this.back();
+        success = true;
+    }else {
+        var search = text;
+        if (this.autocomplete.length != 0) {
+            search = this.selected_auto.full;
+        }
+
+        for (var i = 0; i < this.current_folder.length; i++) {
+            var item = this.current_folder[i];
+
+            if (search == item.name) {
+                success = this.select(item);
+            }
+        }
+    }
+
+    return success
+}
+
 
 
 // This function adds the previous and next episodes to the playlist,
@@ -544,10 +695,7 @@ DLNA_Browser.prototype.select = function(selection) {
         success = true;
     }
 
-    if (this.menu.menuActive) {
-        this.menu.renderMenu();
-    }
-
+    this.menu.renderMenu("", 1);
     return success;
 }
 
@@ -564,9 +712,7 @@ DLNA_Browser.prototype.back = function() {
         this.generateMenuTitle(this.titles[this.titles.length-1]);
     }
 
-    if (this.menu.isMenuActive()) {
-        this.menu.renderMenu();
-    }
+    this.menu.renderMenu("", 1);
 }
 
 DLNA_Browser.prototype._registerCallbacks = function() {
