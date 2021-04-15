@@ -575,12 +575,12 @@ SelectionMenu.prototype.hideMenu = function()
     if (this.menuActive) {
         this.menuActive = false;
         this._unregisterMenuKeys();
-    }
 
-    if (this.active && !this.typingActive)
-        this.hide();
-    else
-        this._renderActiveText();
+        if (this.active && !this.typingActive)
+            this.hide();
+        else
+            this._renderActiveText();
+    }
 };
 
 SelectionMenu.prototype.showTyping = function()

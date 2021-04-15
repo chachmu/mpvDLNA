@@ -639,6 +639,10 @@ DLNA_Browser.prototype.select = function(selection) {
             }];
 
             this.menu.hideMenu();
+            if (this.typing_active) {
+                this.toggle_typing();
+            }
+
             return true;
         }
     } else {
