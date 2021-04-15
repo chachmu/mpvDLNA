@@ -224,6 +224,7 @@ DLNA_Browser.prototype.toggle_typing = function(mode) {
 };
 
 DLNA_Browser.prototype.typing_action = function(key) {
+    var tabbing = false;
 
     if (key.length == 1){
         // "\" does not play nicely with the formatting characters in the osd message
@@ -279,13 +280,23 @@ DLNA_Browser.prototype.typing_action = function(key) {
         }
 
     } else if (key == "TAB") {
+        tabbing = true;
         this.selected_auto.id++;
+        mp.msg.error("ac length: "+this.autocomplete.length);
+        mp.msg.error("trying id: "+this.selected_auto.id);
         if (this.selected_auto.id >= this.autocomplete.length) {
             this.selected_auto.id = 0;
         }
 
+        mp.msg.error("tab sees: ")
+        for (var i = 0; i < this.autocomplete.length; i++) {
+                mp.msg.error([i] + "-> " + this.autocomplete[i].full)
+        }
+        mp.msg.error("-----------------------------")
+
         if (this.autocomplete.length) {
             this.selected_auto.full = this.autocomplete[this.selected_auto.id].full;
+            mp.msg.error("selected: "+this.selected_auto.full)
         }
 
     } else if (key == "clear"){
@@ -318,7 +329,7 @@ DLNA_Browser.prototype.typing_action = function(key) {
 
             // autocomplete the command
             } else {
-                message = this.autocomplete_command(this.typing_text, message);
+                message = this.autocomplete_command(this.typing_text, message, tabbing);
             }
         }
 
@@ -327,14 +338,14 @@ DLNA_Browser.prototype.typing_action = function(key) {
             var argument = this.typing_text.slice(this.typing_text.split(" ")[0].length+1);
             var index = message.split(" ")[0].length+1;
             var msg = message.slice(index);
-            message = message.slice(0, index) + this.autocomplete_text(argument, msg);
+            message = message.slice(0, index) + this.autocomplete_text(argument, msg, tabbing);
         }
 
         message = "$ " + message;
 
     // Use text mode autocorrect.
     } else if (this.typing_mode == "text") {
-        message = this.autocomplete_text(this.typing_text, message);
+        message = this.autocomplete_text(this.typing_text, message, tabbing);
     }
 
     message = Ass.startSeq(true) + message + Ass.stopSeq(true);
@@ -393,80 +404,167 @@ DLNA_Browser.prototype.typing_parse = function() {
     }
 };
 
-DLNA_Browser.prototype.autocomplete_command = function(text, message) {
-    this.autocomplete = [];
+DLNA_Browser.prototype.autocomplete_command = function(text, message, tabbing) {
+    // find new autocomplete options only if we are actually typing
+    if (!tabbing) {
+        this.autocomplete = [];
 
-    if (text == "") {
-        this.selected_auto = {id: null, full: ""};
-        return message;
-    }
 
-    for (var i = 0; i < this.command_list.length; i++) {
-        var index = this.command_list[i].toUpperCase().indexOf(text.toUpperCase());
-
-        if (index != -1) {
-            this.autocomplete.push({
-                 pre:  this.command_list[i].slice(0, index),
-                post: this.command_list[i].slice(index + text.length),
-                full: this.command_list[i],
-            });
+        if (text == "" && this.selected_auto.full=="") {
+            this.selected_auto = {id: null, full: ""};
+            return message;
         }
+
+        for (var i = 0; i < this.command_list.length; i++) {
+            var index = this.command_list[i].toUpperCase().indexOf(text.toUpperCase());
+
+            if (index != -1) {
+                this.autocomplete.push({
+                     pre:  this.command_list[i].slice(0, index),
+                    post: this.command_list[i].slice(index + text.length),
+                    full: this.command_list[i],
+                  sindex: index,
+                  findex: i
+                });
+            }
+        }
+
+        // Prefer the search term appearing as soon in the text as possible
+        this.autocomplete.sort(function(a, b) {
+            return a.sindex == b.sindex ? a.findex - b.findex : a.sindex-b.sindex;
+        });
     }
 
     if (this.autocomplete.length > 0) {
         var search = this.selected_auto.full;
-        this.selected_auto = this.autocomplete[0];
-        this.selected_auto.id = 0;
+        // Prefer the earliest option in the list
+        this.selected_auto = {
+                     pre: this.autocomplete[0].pre,
+                    post: this.autocomplete[0].post,
+                    full: this.autocomplete[0].full,
+                  sindex: this.autocomplete[0].sindex,
+                  findex: this.autocomplete[0].findex,
+                      id: 0
+        }; // have to break this out or you get crazy referencing issues
 
         for (var i = 0; i < this.autocomplete.length; i++) {
             if (search == this.autocomplete[i].full) {
-                this.selected_auto = this.autocomplete[i];
-                this.selected_auto.id = i;
+                this.selected_auto = {
+                         pre: this.autocomplete[i].pre,
+                        post: this.autocomplete[i].post,
+                        full: this.autocomplete[i].full,
+                      sindex: this.autocomplete[i].sindex,
+                      findex: this.autocomplete[i].findex,
+                          id: i
+                }; // have to break this out or you get crazy referencing issues
                 break;
             }
+        }
+
+        // Move the actively selected option to the front of the list so entries are
+        // sorted by how close to the front of the string the search term is
+        if (!tabbing) {
+            this.autocomplete = [this.autocomplete[this.selected_auto.id]].concat(
+                                this.autocomplete.slice(0,this.selected_auto.id),
+                                this.autocomplete.slice(this.selected_auto.id+1));
+
+            this.selected_auto = {
+                         pre: this.autocomplete[0].pre,
+                        post: this.autocomplete[0].post,
+                        full: this.autocomplete[0].full,
+                      sindex: this.autocomplete[0].sindex,
+                      findex: this.autocomplete[0].findex,
+                          id: 0
+            }; // have to break this out or you get crazy referencing issues
         }
 
         message = Ass.alpha("DDDD6E") + this.selected_auto.pre
         + Ass.alpha("00") + message + Ass.alpha("DDDD6E") + this.selected_auto.post;
     } else {
-        this.selected_auto = {id: null, full: ""};
+        this.selected_auto = {id: 0, full: ""};
     }
 
     return message;
 }
 
-DLNA_Browser.prototype.autocomplete_text = function(text, message) {
-    this.autocomplete = [];
+DLNA_Browser.prototype.autocomplete_text = function(text, message, tabbing) {
 
-    // add ".." to the list of autocomplete options
-    var options = this.current_folder.concat({name: ".."});
+    // find new autocomplete options only if we are actually typing
+    if (!tabbing) {
+        this.autocomplete = [];
 
-    for (var i = 0; i < options.length; i++) {
-        var item = options[i];
-        var index = item.name.toUpperCase().indexOf(text.toUpperCase());
+        // add ".." to the list of autocomplete options
+        var options = this.current_folder.concat({name: ".."});
 
-        if ((item.children == null || item.children.length != 0) && index != -1) {
-            this.autocomplete.push({
-                 pre:  item.name.slice(0, index),
-                post: item.name.slice(index + text.length),
-                full: item.name,
-              findex: i
-            });
+        for (var i = 0; i < options.length; i++) {
+            var item = options[i];
+            var index = item.name.toUpperCase().indexOf(text.toUpperCase());
+
+            if ((item.children == null || item.children.length != 0) && index != -1) {
+                this.autocomplete.push({
+                     pre:  item.name.slice(0, index),
+                    post: item.name.slice(index + text.length),
+                    full: item.name,
+                  sindex: index,
+                  findex: i
+                });
+            }
         }
+
+        // Prefer the search term appearing as soon in the text as possible
+        this.autocomplete.sort(function(a, b) {
+            return a.sindex == b.sindex ? a.findex - b.findex : a.sindex-b.sindex;
+        });
     }
 
     if (this.autocomplete.length > 0) {
         var search = this.selected_auto.full;
-        this.selected_auto = this.autocomplete[0];
-        this.selected_auto.id = 0
+
+        this.selected_auto = {
+                     pre: this.autocomplete[0].pre,
+                    post: this.autocomplete[0].post,
+                    full: this.autocomplete[0].full,
+                  sindex: this.autocomplete[0].sindex,
+                  findex: this.autocomplete[0].findex,
+                      id: 0
+        }; // have to break this out or you get crazy referencing issues
+
+        for (var i = 0; i < this.autocomplete.length; i++) {
+            mp.msg.error([i] + "-> " + this.autocomplete[i].full)
+        }
 
         for (var i = 0; i < this.autocomplete.length; i++) {
             if (search == this.autocomplete[i].full) {
-                this.selected_auto = this.autocomplete[i];
-                this.selected_auto.id = i;
+                this.selected_auto = {
+                             pre: this.autocomplete[i].pre,
+                            post: this.autocomplete[i].post,
+                            full: this.autocomplete[i].full,
+                          sindex: this.autocomplete[i].sindex,
+                          findex: this.autocomplete[i].findex,
+                              id: i
+                }; // have to break this out or you get crazy referencing issues
 
                 break;
+
+
             }
+        }
+
+        // Move the actively selected option to the front of the list so entries are
+        // sorted by how close to the front of the string the search term is
+        if (!tabbing) {
+            this.autocomplete = [this.autocomplete[this.selected_auto.id]].concat(
+                                this.autocomplete.slice(0,this.selected_auto.id),
+                                this.autocomplete.slice(this.selected_auto.id+1));
+
+            this.selected_auto = {
+                         pre: this.autocomplete[0].pre,
+                        post: this.autocomplete[0].post,
+                        full: this.autocomplete[0].full,
+                      sindex: this.autocomplete[0].sindex,
+                      findex: this.autocomplete[0].findex,
+                          id: 0
+            }; // have to break this out or you get crazy referencing issues
         }
 
         // Update the menu selection to match
