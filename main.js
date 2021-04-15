@@ -810,6 +810,7 @@ DLNA_Browser.prototype.back = function() {
     this.titles.pop();
 
     if (this.parents.length == 0) {
+        this.current_folder = this.servers;
         this.menu.setOptions(this.servers, 0);
         this.menu.title = "Servers";
     } else {
