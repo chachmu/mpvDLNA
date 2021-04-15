@@ -120,9 +120,13 @@ var DLNA_Browser = function(options) {
                    args: [],
                    text: true},
 
-        "test" : { func: function(self, file){ mp.msg.error("test"); },
+        "text" : { func: function(self, file){ self.typing_mode = "text";
+                                               self.typing_text = "";
+                                               self.typing_position = 0;
+                                               self.typing_active = true;
+                                               self.typing_action(""); },
                    args: [],
-                   text: true}
+                   text: false}
     };
     this.command_list = Object.keys(this.commands);
 
