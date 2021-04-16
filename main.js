@@ -1,4 +1,4 @@
-// mpvDLNA 1.2.1
+// mpvDLNA 1.3.0
 
 "use strict";
 
@@ -14,6 +14,7 @@ var DLNA_Node = function(name, id) {
     this.id = id;
     this.url = null;
     this.children = null;
+    this.info = null; // format is {start: episode#, end: episode#, description: string}
 
     this.isPlaying = false;
     this.type = "node";
@@ -106,6 +107,7 @@ var DLNA_Browser = function(options) {
     this.typing_active = false;
     this.typing_position = 0;
     this.typing_text = "";
+    this.typing_output = "";
     this.autocomplete = [];
     this.selected_auto = {id: 0, full: ""};
 
@@ -114,11 +116,13 @@ var DLNA_Browser = function(options) {
                                          self.findDLNAServers();
                                          self.menu.showMessage("Scan Complete"); },
                    args: [],
-                   text: false},
+                   text: false,
+                   output: false},
 
         "cd"   : { func: function(self, file) { self.command_cd(file); },
                    args: [],
-                   text: true},
+                   text: true,
+                   output: false},
 
         "text" : { func: function(self, file){ self.typing_mode = "text";
                                                self.typing_text = "";
@@ -126,12 +130,31 @@ var DLNA_Browser = function(options) {
                                                self.typing_active = true;
                                                self.typing_action(""); },
                    args: [],
-                   text: false}
+                   text: false,
+                   output: false},
+        "info" : { func: function(self, file){ var info = self.command_info(file);
+                                               if (info === null) {this.typing_output = "No Information";}
+                                               else{
+                                                   self.typing_output = "Episode Number: "+info.start;
+                                                   if (info.start != info.end) {self.typing_output += "-"+info.end;}
+                                                   self.typing_output += "\nDescription: " + info.description
+                                                   // Need to shrink description font size
+                                               }},
+                   args: [],
+                   text: true,
+                   output: true},
+       "ep"    : { func: function(self, args, file){ //self.typing_output =
+                                                     var result = self.command_ep(args, file); },
+                   args: ["episode"],
+                   text: true,
+                   output: true}
     };
     this.command_list = Object.keys(this.commands);
 
     // String key of the current command
     this.command = null;
+    this.arguments = [];
+    this.result_displayed = true;
 };
 
 
@@ -282,29 +305,26 @@ DLNA_Browser.prototype.typing_action = function(key) {
     } else if (key == "TAB") {
         tabbing = true;
         this.selected_auto.id++;
-        mp.msg.error("ac length: "+this.autocomplete.length);
-        mp.msg.error("trying id: "+this.selected_auto.id);
         if (this.selected_auto.id >= this.autocomplete.length) {
             this.selected_auto.id = 0;
         }
 
-        mp.msg.error("tab sees: ")
-        for (var i = 0; i < this.autocomplete.length; i++) {
-                mp.msg.error([i] + "-> " + this.autocomplete[i].full)
-        }
-        mp.msg.error("-----------------------------")
-
         if (this.autocomplete.length) {
             this.selected_auto.full = this.autocomplete[this.selected_auto.id].full;
-            mp.msg.error("selected: "+this.selected_auto.full)
         }
 
     } else if (key == "clear"){
         this.typing_text = "";
+
         this.typing_position = 0;
         this.autocomplete = [];
         this.selected_auto = {id: 0, full: ""};
 
+        if (this.result_displayed) {
+            this.typing_output = "";
+        } else {
+            this.result_displayed = true;
+        }
     }
 
     var message = "";
@@ -317,6 +337,7 @@ DLNA_Browser.prototype.typing_action = function(key) {
 
         // Look for a valid command
         if (this.command == null) {
+            this.arguments = [];
             if (this.typing_text[this.typing_text.length-1] == " ") {
                 var search = this.selected_auto.full;
 
@@ -333,12 +354,27 @@ DLNA_Browser.prototype.typing_action = function(key) {
             }
         }
 
-        // Have a valid command, autocomplete the argument
+        // Have a valid command, autocomplete the arguments
         if (this.command){
-            var argument = this.typing_text.slice(this.typing_text.split(" ")[0].length+1);
-            var index = message.split(" ")[0].length+1;
-            var msg = message.slice(index);
-            message = message.slice(0, index) + this.autocomplete_text(argument, msg, tabbing);
+            // Let the user type arguments
+            if (this.arguments.length <= this.commands[this.command].args.length) {
+                this.arguments = this.typing_text.split(" ").slice(1, -1);
+
+            }
+
+            // Have all the arguments, autocomplete the file
+            if (this.arguments.length == this.commands[this.command].args.length &&
+                this.commands[this.command].text){
+                var arg_lengths = 0;
+                this.arguments.forEach(function(arg){arg_lengths+=arg.length+1});
+
+                var argument = this.typing_text.slice(this.command.length + arg_lengths + 1);
+
+                var index = message.split(" ").slice(0,-1).join(" ").length + 1
+                var msg = message.slice(index);
+                message = message.slice(0, index) + this.autocomplete_text(argument, msg, tabbing);
+            }
+
         }
 
         message = "$ " + message;
@@ -348,7 +384,9 @@ DLNA_Browser.prototype.typing_action = function(key) {
         message = this.autocomplete_text(this.typing_text, message, tabbing);
     }
 
-    message = Ass.startSeq(true) + message + Ass.stopSeq(true);
+    message = Ass.startSeq(true) + message;
+    message += "\n" + Ass.alpha("00") + this.typing_output;
+    message += Ass.stopSeq(true);
     this.menu.typingText = message;
     this.menu._renderActiveText();
 };
@@ -359,18 +397,19 @@ DLNA_Browser.prototype.typing_parse = function() {
 
     // Planned Commands (more to come)
     //      search - Either query the DLNA server if thats possible or just manually search
-    //      cd - exactly the same as what text mode does now
-    //      play - this might be replaced with just trying to cd into a media file
+    //  Y   cd - exactly the same as what text mode does now
+    //  N   play - this has been replaced with just trying to cd into the media file
     //      ep - find episode by number (maybe have option for absolute episode number instead of just its place in a season)
     //      pep - ep but starts playback
-    //      info - query DLNA server for metadata
-    //      text - switch to text input mode
+    //  Y   info - query DLNA server for metadata (For some reason my DLNA server only gives metadata for episodes, not seasons\shows)
+    //  Y   text - switch to text input mode
 
     if (this.typing_mode == "command") {
 
         // This flag is used to make sure we don't accidentally autocomplete the command
         // and the arguments in a single enter keystroke
         var text_input = false;
+
         if (this.command == null) {
             text_input = true;
             if (this.autocomplete.length != 0) {
@@ -378,21 +417,30 @@ DLNA_Browser.prototype.typing_parse = function() {
                 this.typing_text = this.selected_auto.full + " ";
                 this.typing_position = this.typing_text.length;
 
-                text_input = this.commands[this.command].text;
+                // This variable is true if the command requires more information than just its name
+                text_input = this.commands[this.command].text || this.commands[this.command].length > 0;
             }
         }
 
         if (this.command != null && !text_input) {
             var cmd = this.commands[this.command];
 
-            if ( (!cmd.text && cmd.args.length == 0) || this.autocomplete.length != 0) {
-                this.commands[this.command].func(this, this.selected_auto.full);
+            // We have all the arguments and file text needed for the command
+            if (cmd.args.length == this.arguments.length && (!cmd.text || this.autocomplete.length != 0)) {
+
+                if (this.arguments.length > 0) {
+                    cmd.func(this, this.arguments, this.selected_auto.full);
+                } else {
+                    cmd.func(this, this.selected_auto.full);
+                }
+
+                this.result_displayed = !cmd.output;
                 success = true;
             }
         }
 
     } else if (this.typing_mode == "text") {
-        success = this.command_cd(this.typing_text);
+        success = this.command_cd(this.selected_auto.full);
     }
 
     if (success) {
@@ -530,10 +578,6 @@ DLNA_Browser.prototype.autocomplete_text = function(text, message, tabbing) {
         }; // have to break this out or you get crazy referencing issues
 
         for (var i = 0; i < this.autocomplete.length; i++) {
-            mp.msg.error([i] + "-> " + this.autocomplete[i].full)
-        }
-
-        for (var i = 0; i < this.autocomplete.length; i++) {
             if (search == this.autocomplete[i].full) {
                 this.selected_auto = {
                              pre: this.autocomplete[i].pre,
@@ -583,25 +627,111 @@ DLNA_Browser.prototype.autocomplete_text = function(text, message, tabbing) {
 
 DLNA_Browser.prototype.command_cd = function(text) {
     var success = false;
-    if(text == "..") {
+    if (text == "..") {
         this.back();
         success = true;
     }else {
-        var search = text;
-        if (this.autocomplete.length != 0) {
-            search = this.selected_auto.full;
-        }
 
         for (var i = 0; i < this.current_folder.length; i++) {
             var item = this.current_folder[i];
 
-            if (search == item.name) {
+            if (text == item.name) {
                 success = this.select(item);
             }
         }
     }
 
     return success
+}
+
+DLNA_Browser.prototype.command_info = function(text) {
+    if (text == "..") {
+        return null;
+    }
+
+    var selection = null;
+    for (var i = 0; i < this.current_folder.length; i++) {
+        var item = this.current_folder[i];
+
+        if (text == item.name) {
+            selection = item;
+        }
+    }
+
+    return this.info(selection);
+}
+
+DLNA_Browser.prototype.command_ep = function(args, text) {
+    if (text == "..") {
+        return false;
+    }
+
+    var selection = null;
+    for (var i = 0; i < this.current_folder.length; i++) {
+        var item = this.current_folder[i];
+
+        if (text == item.name) {
+            selection = item;
+        }
+    }
+
+    if (!selection) {
+       return false;
+    }
+
+    var target = parseInt(args[0]);
+
+    var episode = 0;
+    selection.children = this.getChildren(selection);
+    for (var i = 0; i < selection.children.length; i++) {
+        var info = this.info(selection.children[i]);
+        if (info === null) {
+            return false; // can't get enough information to find the episode
+        } else if (isNaN(info.end)) {
+            continue; // Maybe need to find a better check for this
+        }
+
+        episode += info.end;
+        if (target <= episode) {
+
+            // Season based episode# target
+            var s_target = target - (episode - info.end) ;
+
+            selection.children[i].children = this.getChildren(selection.children[i]);
+            for (var j = 0; j < selection.children[i].children.length; j++) {
+                var episode_info = this.info(selection.children[i].children[j]);
+
+                if (info === null) {
+                    return false; // can't get enough information to find the episode
+                }
+
+                // episode contains target episode
+                if (episode_info.start <= s_target && s_target <= episode_info.end) {
+                    this.select(selection.children[i]);
+                    this.menu.selectionIdx = j;
+                    this.menu.renderMenu("", 1);
+
+                    // Make the output look nice
+                    var S = i+1
+                    if (S< 10) {
+                        S = "0"+S;
+                    }
+                    var E = j+1;
+                    if (E < 10) {
+                        E = "0"+E;
+                    }
+                    if (target < 10) {
+                        target = "0"+target;
+                    }
+
+
+                    this.typing_output = selection.name+" E"+target+" = S"+S+"E"+E;
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
 }
 
 
@@ -718,10 +848,48 @@ DLNA_Browser.prototype.generateMenuTitle = function() {
     }
 };
 
+DLNA_Browser.prototype.getChildren = function(selection) {
+
+    // This node has not been loaded before, fetch its children from the server
+    if (selection.children == null) {
+        var result = mp.command_native({
+            name: "subprocess",
+            playback_only: false,
+            capture_stdout: true,
+            args : ["python", mp.get_script_directory()+"\\mpvDLNA.py", "-b", this.parents[0].url, selection.id]
+        });
+
+        var sp = result.stdout.split("\n");
+
+        // Tells us if we are getting item or container type data
+        var is_item = sp[0].slice(0, -1)=="item";
+        var increase = (is_item ? 4 : 3);
+        var max_length = (is_item ? 1 : 2)
+
+        var children = [];
+
+        // The first 2 elements of sp are not useful here
+        for (var i = 2; i+max_length < sp.length; i=i+increase) {
+
+            // Need to remove the trailing \n from each entry
+            var child = new DLNA_Node(sp[i].slice(0, -1), sp[i+1].slice(0, -1));
+
+            if (is_item) {
+                child.url = sp[i+2].slice(0,-1);
+            }
+
+            children.push(child);
+        }
+        selection.children = children;
+    }
+
+    return selection.children
+}
 
 DLNA_Browser.prototype.select = function(selection) {
-    if (!selection)
+    if (!selection) {
         return false;
+    }
 
     if (selection.type == "server") {
         this.parents = [selection];
@@ -752,39 +920,8 @@ DLNA_Browser.prototype.select = function(selection) {
         return false;
     }
 
-
-    // This node has not been loaded before, fetch its children
-    if (this.parents[this.parents.length-1].children === null) {
-        var result = mp.command_native({
-            name: "subprocess",
-            playback_only: false,
-            capture_stdout: true,
-            args : ["python", mp.get_script_directory()+"\\mpvDLNA.py", "-b", this.parents[0].url, selection.id]
-        });
-
-        var sp = result.stdout.split("\n");
-
-        // Tells us if we are getting item or container type data
-        var is_item = sp[0].slice(0, -1)=="item";
-        var increase = (is_item ? 4 : 3);
-        var max_length = (is_item ? 1 : 2)
-
-        var children = [];
-
-        // The first 2 elements of sp are not useful here
-        for (var i = 2; i+max_length < sp.length; i=i+increase) {
-
-            // Need to remove the trailing \n from each entry
-            var child = new DLNA_Node(sp[i].slice(0, -1), sp[i+1].slice(0, -1));
-
-            if (is_item) {
-                child.url = sp[i+2].slice(0,-1);
-            }
-
-            children.push(child);
-        }
-        this.parents[this.parents.length-1].children = children;
-    }
+    // This will load the children if they haven't been already
+    this.parents[this.parents.length-1].children = this.getChildren(selection);
 
     var success = false;
 
@@ -803,6 +940,66 @@ DLNA_Browser.prototype.select = function(selection) {
 
     this.menu.renderMenu("", 1);
     return success;
+}
+
+DLNA_Browser.prototype.info = function(selection) {
+    if (selection === null) {
+        return null;
+    }
+
+    // This node has not loaded its info before, fetch its metadata
+    if (selection.info == null) {
+        var result = mp.command_native({
+            name: "subprocess",
+            playback_only: false,
+            capture_stdout: true,
+            args : ["python", mp.get_script_directory()+"\\mpvDLNA.py", "-i", this.parents[0].url, selection.id]
+        });
+
+        var sp = result.stdout.split("\n");
+
+        var info = {start: 1, end: 1, description: ""}
+
+        // Tells us if we are getting item or container type data
+        var is_item = sp[0].slice(0, -1)=="item";
+
+        if (is_item) {
+            // The first 2 elements of sp are not useful here, get the episode number
+            if (sp[2] != "No Episode Number") {
+                info.start = parseInt(sp[2]);
+                info.end = info.start;
+
+                // figure out if this is actually multiple episodes
+                var title_split = selection.name.split(" - ");
+                if (!/^\d+$/.test(title_split[0])) {
+                    var ep_split = title_split[0].split("-");
+                    info.end = parseInt(ep_split[1]);
+
+                    // this is for testing, remove it later
+                    if (info.start != parseInt(ep_split[0])) {
+                        mp.msg.error("episode numbers do not match")
+                    }
+                }
+            }
+        } else {
+
+            selection.children = this.getChildren(selection);
+            if (selection.children.length != 0) {
+                var start_info = this.info(selection.children[0]);
+                var end_info = this.info(selection.children[selection.children.length-1])
+                info.start = start_info.start;
+                info.end = end_info.end;
+            }
+        }
+
+        // Everything else is the description (for some reason my DLNA server doesn't send descriptions for seasons/series, only episodes)
+        info.description = sp.slice(3).join("\n")
+        // Sometimes the description gets a little mangled but it seems like the issue is on the DLNA server side
+
+        selection.info = info;
+    }
+
+    return selection.info;
 }
 
 DLNA_Browser.prototype.back = function() {

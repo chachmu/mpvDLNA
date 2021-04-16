@@ -7,6 +7,24 @@ import logging
 # the output of the upnp client module
 logging.getLogger("upnpclient").setLevel(logging.CRITICAL)
 
+def info(url, id):
+    device = upnpclient.Device(url)
+    result = device.ContentDirectory.Browse(ObjectID=id, BrowseFlag="BrowseMetadata", Filter="*", StartingIndex=0, RequestedCount=2000, SortCriteria="")
+    root = etree.fromstring(result["Result"])
+
+    # Determine if we should be looking at items or containers
+    list = root.findall("./item", root.nsmap)
+    type = "item"
+    if len(list) == 0:
+        list = root.findall("./container", root.nsmap)
+        type = "container"
+
+    print(type)
+    for t in list:
+        print("")
+        print(t.findtext("upnp:episodeNumber", "No Episode Number", root.nsmap))
+        print(t.findtext("dc:description", "No Description", root.nsmap).replace(u'\u200e',""))
+
 
 def browse(url, id):
     device = upnpclient.Device(url)
@@ -19,20 +37,20 @@ def browse(url, id):
     if len(list) == 0:
         list = root.findall("./container", root.nsmap)
         type = "container"
-    
+
     print(type)
     for t in list:
         print("")
-        print(t.findtext("dc:title", "untitled", root.nsmap))
+        print(t.findtext("dc:title", "untitled", root.nsmap).replace(u'\u200e',""))
         print(t.get("id"))
-        
+
         if type == "item":
             print(t.findtext("res", "", root.nsmap))
-            
-            
+
+
 def list(timeout):
     devices = []
-    
+
     possibleDevices = upnpclient.discover(timeout)
     for device in possibleDevices:
         if "MediaServer" in device.device_type:
@@ -41,7 +59,7 @@ def list(timeout):
                 if d.friendly_name == device.friendly_name:
                     addToList = False
                     break
-            
+
             if addToList:
                 devices.append(device)
 
@@ -50,7 +68,7 @@ def list(timeout):
         print("")
         print(device.friendly_name)
         print(device.location)
-    
+
 
 def help():
     print("mpvDLNA.py requires a single command line argument")
@@ -58,11 +76,12 @@ def help():
     print("-v, --version  Prints version information")
     print("-l, --list     Takes a timeout in seconds and outputs a list of DLNA Media Servers on the network")
     print("-b, --browse   Takes a DLNA url and the id of a DLNA element and outputs its direct children")
-    
+    print("-i, --info     Takes a DLNA url and the id of a DLNA element and outputs its metadata")
+
 
 if len(sys.argv) == 2:
     if sys.argv[1] == "-v" or sys.argv[1] == "--version":
-        print("mpvDLNA Plugin Version 0.0.1")
+        print("mpvDLNA.py Plugin Version 1.0.1")
     else:
         help()
 elif len(sys.argv) == 3:
@@ -72,7 +91,9 @@ elif len(sys.argv) == 3:
         help()
 elif len(sys.argv) == 4:
     if sys.argv[1] == "-b" or sys.argv[1] == "--browse":
-       browse(sys.argv[2], sys.argv[3])
+        browse(sys.argv[2], sys.argv[3])
+    elif sys.argv[1] == "-i" or sys.argv[1] == "--info":
+        info(sys.argv[2], sys.argv[3])
     else:
         help()
 else:
