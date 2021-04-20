@@ -477,7 +477,7 @@ DLNA_Browser.prototype.autocomplete_command = function(text, message, tabbing) {
 
             if (index != -1) {
                 this.autocomplete.push({
-                     pre:  this.command_list[i].slice(0, index),
+                     pre: this.command_list[i].slice(0, index),
                     post: this.command_list[i].slice(index + text.length),
                     full: this.command_list[i],
                   sindex: index,
