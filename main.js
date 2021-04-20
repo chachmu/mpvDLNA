@@ -1031,6 +1031,10 @@ DLNA_Browser.prototype._registerCallbacks = function() {
     this.menu.setCallbackMenuLeft(function() {
         self.back();
     });
+
+    this.menu.setCallbackMenuRight(function() {
+       self.select(this.getSelectedItem());
+    });
 };
 
 
