@@ -6,6 +6,7 @@ import logging
 # important information is passed through stdout so we need to supress
 # the output of the upnp client module
 logging.getLogger("upnpclient").setLevel(logging.CRITICAL)
+logging.getLogger("ssdp").setLevel(logging.CRITICAL)
 
 def info(url, id):
     device = upnpclient.Device(url)
@@ -23,7 +24,7 @@ def info(url, id):
     for t in list:
         print("")
         print(t.findtext("upnp:episodeNumber", "No Episode Number", root.nsmap))
-        print(t.findtext("dc:description", "No Description", root.nsmap).replace(u'\u200e',""))
+        print(t.findtext("dc:description", "No Description", root.nsmap).encode().decode("ascii", errors='ignore'))
 
 
 def browse(url, id):
@@ -41,7 +42,7 @@ def browse(url, id):
     print(type)
     for t in list:
         print("")
-        print(t.findtext("dc:title", "untitled", root.nsmap).replace(u'\u200e',""))
+        print(t.findtext("dc:title", "untitled", root.nsmap).encode().decode("ascii", errors='ignore'))
         print(t.get("id"))
 
         if type == "item":
@@ -81,7 +82,7 @@ def help():
 
 if len(sys.argv) == 2:
     if sys.argv[1] == "-v" or sys.argv[1] == "--version":
-        print("mpvDLNA.py Plugin Version 1.0.1")
+        print("mpvDLNA.py Plugin Version 1.0.2")
     else:
         help()
 elif len(sys.argv) == 3:
