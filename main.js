@@ -1,4 +1,4 @@
-// mpvDLNA 1.3.0
+// mpvDLNA 1.4.0
 
 "use strict";
 
@@ -89,12 +89,12 @@ var DLNA_Browser = function(options) {
         "ENTER" : function(self){ self.typing_parse() },
         "LEFT"  : function(self){ self.typing_action("left") },
         "RIGHT" : function(self){ self.typing_action("right") },
-        //"DOWN"  : function(self){ mp.msg.error("down") },//Might leave these unbound since they are
-        //"UP"    : function(self){ mp.msg.error("up") },  //part of the menu navigation
+        "DOWN"  : function(self){ self.typing_action("down") },
+        "UP"    : function(self){ self.typing_action("up") },
         "BS"    : function(self){ self.typing_action("backspace") },
         "DEL"   : function(self){ self.typing_action("delete") },
         "SPACE" : function(self){ self.typing_action(" ") },
-        "TAB"   : function(self){ self.typing_action("TAB") }
+        "TAB"   : function(self){ self.typing_action("tab") }
     };
 
     this.typing_keys = [];
@@ -302,7 +302,7 @@ DLNA_Browser.prototype.typing_action = function(key) {
             this.typing_position = this.typing_text.length;
         }
 
-    } else if (key == "TAB") {
+    } else if (key == "tab" || key == "down") {
         tabbing = true;
         this.selected_auto.id++;
         if (this.selected_auto.id >= this.autocomplete.length) {
@@ -312,7 +312,16 @@ DLNA_Browser.prototype.typing_action = function(key) {
         if (this.autocomplete.length) {
             this.selected_auto.full = this.autocomplete[this.selected_auto.id].full;
         }
+    } else if (key == "up") {
+        tabbing = true;
+        this.selected_auto.id--;
+        if (this.selected_auto.id < 0) {
+            this.selected_auto.id = this.autocomplete.length - 1;
+        }
 
+        if (this.autocomplete.length) {
+            this.selected_auto.full = this.autocomplete[this.selected_auto.id].full;
+        }
     } else if (key == "clear"){
         this.typing_text = "";
 
