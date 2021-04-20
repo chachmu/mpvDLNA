@@ -1,4 +1,4 @@
-// mpvDLNA 1.5.0
+// mpvDLNA 1.5.1
 
 "use strict";
 
@@ -366,7 +366,7 @@ DLNA_Browser.prototype.typing_action = function(key) {
         // Have a valid command, autocomplete the arguments
         if (this.command){
             // Let the user type arguments
-            if (this.arguments.length <= this.commands[this.command].args.length) {
+            if (this.arguments.length < this.commands[this.command].args.length) {
                 this.arguments = this.typing_text.split(" ").slice(1, -1);
 
             }
