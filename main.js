@@ -85,16 +85,17 @@ var DLNA_Browser = function(options) {
 
     // Typing functionality
     this.typing_controls = {
-        "ESC"   : function(self){ self.toggle_typing() },
-        "ENTER" : function(self){ self.typing_parse() },
-        "LEFT"  : function(self){ self.typing_action("left") },
-        "RIGHT" : function(self){ self.typing_action("right") },
-        "DOWN"  : function(self){ self.typing_action("down") },
-        "UP"    : function(self){ self.typing_action("up") },
-        "BS"    : function(self){ self.typing_action("backspace") },
-        "DEL"   : function(self){ self.typing_action("delete") },
-        "SPACE" : function(self){ self.typing_action(" ") },
-        "TAB"   : function(self){ self.typing_action("tab") }
+        "ESC"     : function(self){ self.toggle_typing() },
+        "ENTER"   : function(self){ self.typing_parse() },
+        "LEFT"    : function(self){ self.typing_action("left") },
+        "RIGHT"   : function(self){ self.typing_action("right") },
+        "DOWN"    : function(self){ self.typing_action("down") },
+        "UP"      : function(self){ self.typing_action("up") },
+        "BS"      : function(self){ self.typing_action("backspace") },
+        "CTRL+BS" : function(self){ self.typing_action("ctrl+backspace") },
+        "DEL"     : function(self){ self.typing_action("delete") },
+        "SPACE"   : function(self){ self.typing_action(" ") },
+        "TAB"     : function(self){ self.typing_action("tab") }
     };
 
     this.typing_keys = [];
@@ -270,7 +271,14 @@ DLNA_Browser.prototype.typing_action = function(key) {
                 this.command = null;
             }
         }
-
+    } else if (key == "ctrl+backspace") {
+        // May change this to delete the relevant filename/argument/command later
+        // Right now it just clears all text
+        this.typing_position = 0;
+        this.typing_text = "";
+        if (this.typing_mode == "command") {
+            this.command = null;
+        }
     } else if (key == "delete") {
         this.typing_text = this.typing_text.slice(0, this.typing_position)
             + this.typing_text.slice(this.typing_position+1);
