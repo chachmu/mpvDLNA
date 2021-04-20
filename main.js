@@ -1,4 +1,4 @@
-// mpvDLNA 1.4.0
+// mpvDLNA 1.5.0
 
 "use strict";
 
@@ -408,7 +408,7 @@ DLNA_Browser.prototype.typing_parse = function() {
     //      search - Either query the DLNA server if thats possible or just manually search
     //  Y   cd - exactly the same as what text mode does now
     //  N   play - this has been replaced with just trying to cd into the media file
-    //      ep - find episode by number (maybe have option for absolute episode number instead of just its place in a season)
+    //  Y   ep - find episode by number (maybe have option for absolute episode number instead of just its place in a season)
     //      pep - ep but starts playback
     //  Y   info - query DLNA server for metadata (For some reason my DLNA server only gives metadata for episodes, not seasons\shows)
     //  Y   text - switch to text input mode
@@ -693,6 +693,10 @@ DLNA_Browser.prototype.command_ep = function(args, text) {
     var episode = 0;
     selection.children = this.getChildren(selection);
     for (var i = 0; i < selection.children.length; i++) {
+        this.typing_output = "Scanning: "+ selection.children[i].name + ", reached E" + episode;
+        this.result_displayed = false;
+        this.typing_action("");
+
         var info = this.info(selection.children[i]);
         if (info === null) {
             return false; // can't get enough information to find the episode
@@ -700,18 +704,22 @@ DLNA_Browser.prototype.command_ep = function(args, text) {
             continue; // Maybe need to find a better check for this
         }
 
-        episode += info.end;
-        if (target <= episode) {
+        if (target <= episode + info.end) {
 
             // Season based episode# target
-            var s_target = target - (episode - info.end) ;
+            var s_target = target - episode;
 
             selection.children[i].children = this.getChildren(selection.children[i]);
             for (var j = 0; j < selection.children[i].children.length; j++) {
+                this.typing_output = "Scanning: "+ selection.children[i].name + ", reached E" + episode;
+                this.result_displayed = false;
+                this.typing_action("");
+                episode++;
+
                 var episode_info = this.info(selection.children[i].children[j]);
 
-                if (info === null) {
-                    return false; // can't get enough information to find the episode
+                if (episode_info === null) {
+                    continue;
                 }
 
                 // episode contains target episode
@@ -721,26 +729,42 @@ DLNA_Browser.prototype.command_ep = function(args, text) {
                     this.menu.renderMenu("", 1);
 
                     // Make the output look nice
-                    var S = i+1
-                    if (S< 10) {
-                        S = "0"+S;
+                    if (season< 10) {
+                        season = "0"+season;
                     }
-                    var E = j+1;
+
+                    var E = episode_info.start;
                     if (E < 10) {
                         E = "0"+E;
                     }
+
+                    if (episode_info.start != episode_info.end) {
+                        if (episode_info.end < 10) {
+                            E += "0";
+                        }
+                        E +="-E"+episode_info.end;
+                    }
+
                     if (target < 10) {
                         target = "0"+target;
                     }
 
-
-                    this.typing_output = selection.name+" E"+target+" = S"+S+"E"+E;
+                    this.typing_output = selection.name+" E"+target+" = "+selection.children[i].name+" E"+E;
                     return true;
                 }
             }
-            return false;
+
+            break;
         }
+
+        episode += info.end;
     }
+
+    if (target < 10) {
+        target = "0"+target;
+    }
+    this.typing_output = Ass.color("FF0000", true) + "Failed to find "+selection.name+" E"+target
+    return false;
 }
 
 
