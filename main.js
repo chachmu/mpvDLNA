@@ -1,4 +1,4 @@
-// mpvDLNA 1.5.1
+// mpvDLNA 1.5.2
 
 "use strict";
 
@@ -729,10 +729,6 @@ DLNA_Browser.prototype.command_ep = function(args, text) {
                     this.menu.renderMenu("", 1);
 
                     // Make the output look nice
-                    if (season< 10) {
-                        season = "0"+season;
-                    }
-
                     var E = episode_info.start;
                     if (E < 10) {
                         E = "0"+E;
@@ -1007,11 +1003,6 @@ DLNA_Browser.prototype.info = function(selection) {
                 if (!/^\d+$/.test(title_split[0])) {
                     var ep_split = title_split[0].split("-");
                     info.end = parseInt(ep_split[1]);
-
-                    // this is for testing, remove it later
-                    if (info.start != parseInt(ep_split[0])) {
-                        mp.msg.error("episode numbers do not match")
-                    }
                 }
             }
         } else {
