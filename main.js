@@ -1,4 +1,4 @@
-// mpvDLNA 1.5.3
+// mpvDLNA 2.0.0
 
 "use strict";
 
@@ -144,11 +144,16 @@ var DLNA_Browser = function(options) {
                    args: [],
                    text: true,
                    output: true},
-        "ep"   : { func: function(self, args, file){ //self.typing_output =
-                                                     var result = self.command_ep(args, file); },
+        "ep"   : { func: function(self, args, file){ self.command_ep(args, file); },
                    args: ["episode"],
                    text: true,
-                   output: true}
+                   output: true},
+
+        "pep"  : { func: function(self, args, file){ var result = self.command_ep(args,                                             file);
+                                                     if (result) self.select(self.menu.getSelectedItem()) },
+                   args: ["episode"],
+                   text: true,
+                   output: true},
     };
     this.command_list = Object.keys(this.commands);
 
