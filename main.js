@@ -1,8 +1,8 @@
-// mpvDLNA 3.0.0
+// mpvDLNA 3.0.1
 
 "use strict";
 
-mp.module_paths.push(mp.get_script_directory() + "\\modules.js");
+mp.module_paths.push(mp.get_script_directory() + "/modules.js");
 var Options = require('Options');
 var Ass = require('AssFormat');
 var SelectionMenu = require('SelectionMenu');
