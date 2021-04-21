@@ -35,6 +35,9 @@ This script requires an installation of [mpv.io](https://mpv.io) that was built 
     * Toggle Text Input:    `; script-binding text_mpvDLNA`
     * Toggle Command Input: `: script-binding command_mpvDLNA`
 
+4. Install [uPnPclient](https://github.com/flyte/upnpclient) by running `pip install upnpclient`.
+5. If you intend to use the wake on lan feature you will also need to install [pywakeonlan](https://github.com/remcohaszing/pywakeonlan) by running `pip install wakeonlan`
+
 
 ## main.js
 This file contains the majority of the code including the gui. It handles storing and managing all of the information but due to limitations with the version of javascript supported by MPV ([MuJS](https://mujs.com)) it passes all DLNA communication through the mpvDLNA.py file. When starting playback of a file the DLNA url of the file is added to the internal MPV playlist and an event is triggered each time a file is loaded that adds the previous and next files to the playlist so you can skip forwards and backwards without issues.
