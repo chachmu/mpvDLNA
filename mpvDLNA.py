@@ -18,7 +18,11 @@ logging.getLogger("ssdp").setLevel(logging.CRITICAL)
 
 def wake(mac):
     if wol:
-        wakeonlan.send_magic_packet(mac);
+        try:
+            wakeonlan.send_magic_packet(mac);
+            print("packet sent")
+        except:
+            print("send failed")
     else:
         print("import failed")
 
@@ -103,7 +107,7 @@ if len(sys.argv) == 2:
 elif len(sys.argv) == 3:
     if sys.argv[1] == "-l" or sys.argv[1] == "--list":
         list(int(sys.argv[2]))
-    if sys.argv[1] == "-w" or sys.argv[1] == "--wake":
+    elif sys.argv[1] == "-w" or sys.argv[1] == "--wake":
         wake(sys.argv[2])
     else:
         help()

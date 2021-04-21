@@ -1,4 +1,4 @@
-// mpvDLNA 2.0.0
+// mpvDLNA 3.0.0
 
 "use strict";
 
@@ -60,10 +60,6 @@ var DLNA_Browser = function(options) {
         self.menu.setUseTextColors(value);
     });
 
-    // determine if we need to scan for DLNA servers next time the browser opens
-    this.scan = true;
-    this.servers = [];
-
     // list of the parents of the current node.
     // The first element represents the server we are currently browsing
     // The last element represents the node we are currently on
@@ -73,6 +69,25 @@ var DLNA_Browser = function(options) {
     this.titles = [];
 
     this.current_folder = [];
+
+    // determine if we need to scan for DLNA servers next time the browser opens
+    this.scan = true;
+    this.servers = [];
+
+    // handle servers listed in the config file
+    for (var i = 0; i < options.serverNames.length; i++) {
+        this.servers.push(new DLNA_Server(options.serverNames[i], options.serverAddrs[i]));
+    }
+    if (this.servers.length != 0) {
+        this.menu.title = "Servers";
+        this.current_folder = this.servers;
+        this.menu.setOptions(this.servers, 0);
+
+        this.scan = false;
+    }
+
+    // list of wake on lan mac addresses
+    this.mac_addresses = options.macAddresses;
 
     // List of nodes added to playlist. Should mirror the MPV internal playlist.
     // This is necessary because in certain edge cases if a user were to be playing
@@ -133,6 +148,7 @@ var DLNA_Browser = function(options) {
                    args: [],
                    text: false,
                    output: false},
+
         "info" : { func: function(self, file){ var info = self.command_info(file);
                                                if (info === null) {this.typing_output = "No Information";}
                                                else{
@@ -145,21 +161,30 @@ var DLNA_Browser = function(options) {
                    text: true,
                    output: true},
         "ep"   : { func: function(self, args, file){ self.command_ep(args, file); },
-                   args: ["episode"],
+                   args: ["Episode"],
                    text: true,
                    output: true},
 
         "pep"  : { func: function(self, args, file){ var result = self.command_ep(args,                                             file);
                                                      if (result) self.select(self.menu.getSelectedItem()) },
-                   args: ["episode"],
+                   args: ["Episode"],
                    text: true,
+                   output: true},
+
+        "wake"   : { func: function(self, args){ self.command_wake(args); },
+                   args: ["Mac Address"],
+                   auto: function(self, index){ return self.mac_addresses; },
+                   text: false,
                    output: true},
     };
     this.command_list = Object.keys(this.commands);
 
     // String key of the current command
     this.command = null;
+    // List of already typed command arguments
     this.arguments = [];
+    // List of unfinished typed command argument
+    this.typing_argument= "";
     this.result_displayed = true;
 };
 
@@ -190,6 +215,7 @@ DLNA_Browser.prototype.findDLNAServers = function() {
         this.servers.push(server);
     }
     this.menu.title = "Servers";
+    this.parents = [];
     this.current_folder = this.servers;
     this.menu.setOptions(this.servers, 0);
 
@@ -372,7 +398,7 @@ DLNA_Browser.prototype.typing_action = function(key) {
 
             // autocomplete the command
             } else {
-                message = this.autocomplete_command(this.typing_text, message, tabbing);
+                message = this.autocomplete_command(this.typing_text, message, tabbing, this.command_list);
             }
         }
 
@@ -380,8 +406,26 @@ DLNA_Browser.prototype.typing_action = function(key) {
         if (this.command){
             // Let the user type arguments
             if (this.arguments.length < this.commands[this.command].args.length) {
-                this.arguments = this.typing_text.split(" ").slice(1, -1);
+                this.arguments = this.typing_text.split(" ").slice(1);
+                this.typing_argument = this.arguments.pop();
 
+                if (this.commands[this.command].auto != null) {
+                    var arg_lengths = 0;
+                    this.arguments.forEach(function(arg){arg_lengths+=arg.length+1});
+
+                    var argument = this.typing_text.slice(this.command.length + arg_lengths + 1);
+
+                    var index = message.split(" ").slice(0,-1).join(" ").length + 1
+                    var msg = message.slice(index);
+                    message = message.slice(0, index) + this.autocomplete_command(argument, msg, tabbing, this.commands[this.command].auto(this, this.arguments.length-1));
+                }
+            }
+
+            // Display a hint about what kind of argument to enter
+            if (this.arguments.length < this.commands[this.command].args.length) {
+                this.typing_output = "Argument: " + this.commands[this.command].args[this.arguments.length];
+            } else if (this.typing_output.split(":")[0] == "Argument"){
+                this.typing_output = "";
             }
 
             // Have all the arguments, autocomplete the file
@@ -440,24 +484,60 @@ DLNA_Browser.prototype.typing_parse = function() {
                 this.typing_position = this.typing_text.length;
 
                 // This variable is true if the command requires more information than just its name
-                text_input = this.commands[this.command].text || this.commands[this.command].length > 0;
+                text_input = this.commands[this.command].text || this.commands[this.command].args.length > 0;
             }
         }
 
         if (this.command != null && !text_input) {
             var cmd = this.commands[this.command];
 
-            // We have all the arguments and file text needed for the command
-            if (cmd.args.length == this.arguments.length && (!cmd.text || this.autocomplete.length != 0)) {
+            if (cmd.text) {
+                // We have all the arguments and file text needed for the command
+                if (cmd.args.length == this.arguments.length && this.autocomplete.length != 0) {
 
-                if (this.arguments.length > 0) {
-                    cmd.func(this, this.arguments, this.selected_auto.full);
-                } else {
-                    cmd.func(this, this.selected_auto.full);
+                    if (this.arguments.length > 0) {
+                        cmd.func(this, this.arguments, this.selected_auto.full);
+                    } else {
+                        cmd.func(this, this.selected_auto.full);
+                    }
+
+                    this.result_displayed = !cmd.output;
+                    success = true;
                 }
+            } else {
+                // Command only needs its name
+                if (cmd.args.length == 0) {
+                    cmd.func(this);
+                    this.result_displayed = !cmd.output;
+                    success = true;
 
-                this.result_displayed = !cmd.output;
-                success = true;
+                // We already have all but the last argument
+                } else if (this.arguments.length == cmd.args.length - 1){
+                    // Autocomplete the last argument
+                    if (this.autocomplete.length != 0) {
+                        this.arguments.push(this.selected_auto.full)
+
+                    // Can't autocomplete the last argument, use what the user entered
+                    } else {
+                        this.arguments.push(this.typing_argument)
+                    }
+
+                    cmd.func(this, this.arguments);
+                    this.result_displayed = !cmd.output;
+                    success = true;
+
+                // Not enough arguments, autocomplete the one we are on
+                } else {
+                    if (this.autocomplete.length != 0) {
+
+                        if (this.typing_argument.length != 0) {
+                            this.typing_text = this.typing_text.slice(0, -this.typing_argument.length)
+                        }
+
+                        this.typing_text += this.selected_auto.full + " ";
+                        this.typing_position = this.typing_text.length;
+                    }
+                }
             }
         }
 
@@ -474,25 +554,25 @@ DLNA_Browser.prototype.typing_parse = function() {
     }
 };
 
-DLNA_Browser.prototype.autocomplete_command = function(text, message, tabbing) {
+// Works for commands and arguments
+DLNA_Browser.prototype.autocomplete_command = function(text, message, tabbing, options) {
     // find new autocomplete options only if we are actually typing
     if (!tabbing) {
         this.autocomplete = [];
 
-
-        if (text == "" && this.selected_auto.full=="") {
+        if (this.options === null || (text == "" && this.selected_auto.full=="")) {
             this.selected_auto = {id: null, full: ""};
             return message;
         }
 
-        for (var i = 0; i < this.command_list.length; i++) {
-            var index = this.command_list[i].toUpperCase().indexOf(text.toUpperCase());
+        for (var i = 0; i < options.length; i++) {
+            var index = options[i].toUpperCase().indexOf(text.toUpperCase());
 
             if (index != -1) {
                 this.autocomplete.push({
-                     pre: this.command_list[i].slice(0, index),
-                    post: this.command_list[i].slice(index + text.length),
-                    full: this.command_list[i],
+                     pre: options[i].slice(0, index),
+                    post: options[i].slice(index + text.length),
+                    full: options[i],
                   sindex: index,
                   findex: i
                 });
@@ -556,6 +636,7 @@ DLNA_Browser.prototype.autocomplete_command = function(text, message, tabbing) {
 
     return message;
 }
+
 
 DLNA_Browser.prototype.autocomplete_text = function(text, message, tabbing) {
 
@@ -774,6 +855,29 @@ DLNA_Browser.prototype.command_ep = function(args, text) {
     }
     this.typing_output = Ass.color("FF0000", true) + "Failed to find "+selection.name+" E"+target
     return false;
+}
+
+DLNA_Browser.prototype.command_wake = function(args) {
+    if (args[0] === null) {
+        this.typing_output = Ass.color("FF0000", true) + "MAC Address cannot be null";
+        return;
+    }
+
+    var result = mp.command_native({
+            name: "subprocess",
+            playback_only: false,
+            capture_stdout: true,
+            args : ["python", mp.get_script_directory()+"\\mpvDLNA.py", "-w", args[0]]
+        });
+
+    // Need to remove two trailing newline characters
+    if (result.stdout.slice(0, -2) == "packet sent") {
+        this.typing_output = "Packet Sent";
+    } else if (result.stdout.slice(0, -2) == "import failed"){
+        this.typing_output = Ass.color("FF0000", true) + "wakeonlan python package not installed";
+    } else {
+        this.typing_output = Ass.color("FF0000", true) + "unspecified error";
+    }
 }
 
 
@@ -1095,6 +1199,11 @@ DLNA_Browser.prototype._registerCallbacks = function() {
         // Whether to show the "[h for help]" hint on the first launch.
         // * (bool) Ex: `yes` (enable) or `no` (disable).
         help_hint: true,
+
+        server_names: '',
+        server_addrs: '',
+        mac_addresses: '',
+
         // Keybindings. You can bind any action to multiple keys simultaneously.
         // * (string) Ex: `{up}`, `{up}+{shift+w}` or `{x}+{+}` (binds to "x" and the plus key).
         // - Note that all "shift variants" MUST be specified as "shift+<key>".
@@ -1117,6 +1226,9 @@ DLNA_Browser.prototype._registerCallbacks = function() {
             maxLines: userConfig.getValue('max_lines'),
             menuFontSize: userConfig.getValue('font_size'),
             showHelpHint: userConfig.getValue('help_hint'),
+            serverNames: userConfig.getMultiValue('server_names'),
+            serverAddrs: userConfig.getMultiValue('server_addrs'),
+            macAddresses: userConfig.getMultiValue('mac_addresses'),
             keyRebindings: {
                 'Menu-Up': userConfig.getMultiValue('keys_menu_up'),
                 'Menu-Down': userConfig.getMultiValue('keys_menu_down'),
