@@ -2,11 +2,25 @@ import sys
 import upnpclient
 
 from lxml import etree
+
+# Try to import wake on lan
+wol = True
+try:
+    import wakeonlan
+except ImportError as error:
+    wol = False
+
 import logging
 # important information is passed through stdout so we need to supress
 # the output of the upnp client module
 logging.getLogger("upnpclient").setLevel(logging.CRITICAL)
 logging.getLogger("ssdp").setLevel(logging.CRITICAL)
+
+def wake(mac):
+    if wol:
+        wakeonlan.send_magic_packet(mac);
+    else:
+        print("import failed")
 
 def info(url, id):
     device = upnpclient.Device(url)
@@ -72,22 +86,25 @@ def list(timeout):
 
 
 def help():
-    print("mpvDLNA.py requires a single command line argument")
+    print("mpvDLNA.py supports the following commands:")
     print("-h, --help     Prints the help dialog")
     print("-v, --version  Prints version information")
     print("-l, --list     Takes a timeout in seconds and outputs a list of DLNA Media Servers on the network")
     print("-b, --browse   Takes a DLNA url and the id of a DLNA element and outputs its direct children")
     print("-i, --info     Takes a DLNA url and the id of a DLNA element and outputs its metadata")
+    print("-w, --wake     Takes a MAC address and attempts to send a wake on lan packet to it")
 
 
 if len(sys.argv) == 2:
     if sys.argv[1] == "-v" or sys.argv[1] == "--version":
-        print("mpvDLNA.py Plugin Version 1.0.2")
+        print("mpvDLNA.py Plugin Version 2.0.0")
     else:
         help()
 elif len(sys.argv) == 3:
     if sys.argv[1] == "-l" or sys.argv[1] == "--list":
         list(int(sys.argv[2]))
+    if sys.argv[1] == "-w" or sys.argv[1] == "--wake":
+        wake(sys.argv[2])
     else:
         help()
 elif len(sys.argv) == 4:
