@@ -66,6 +66,12 @@ server_addrs={Address1}+{Address2}
 
 # List of mac addresses to autocomplete for wake on lan
 mac_addresses={MAC_ID1}+{MAC_ID2}
+
+# Font size of menu elements
+font_size=35
+
+# Font size of metadata description from the `info` command
+description_font_size=10
 ```
 
 ## More on `ep`

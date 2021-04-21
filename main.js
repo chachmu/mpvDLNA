@@ -42,6 +42,12 @@ var DLNA_Browser = function(options) {
     this.showHelpHint = typeof options.showHelpHint === 'boolean' ?
         options.showHelpHint : true;
 
+    mp.msg.error(options.descriptionFontSize)
+    this.descriptionSize = options.descriptionFontSize;
+    if (this.descriptionSize === null) {
+        this.descriptionSize = options.menuFontSize / 4.5;
+    }
+
     this.menu = new SelectionMenu({ // Throws if bindings are illegal.
             maxLines: options.maxLines,
             menuFontSize: options.menuFontSize,
@@ -154,8 +160,7 @@ var DLNA_Browser = function(options) {
                                                else{
                                                    self.typing_output = "Episode Number: "+info.start;
                                                    if (info.start != info.end) {self.typing_output += "-"+info.end;}
-                                                   self.typing_output += "\nDescription: " + info.description
-                                                   // Need to shrink description font size
+                                                   self.typing_output += Ass.size(self.descriptionSize, true)+"\nDescription: "+info.description;
                                                }},
                    args: [],
                    text: true,
@@ -165,7 +170,7 @@ var DLNA_Browser = function(options) {
                    text: true,
                    output: true},
 
-        "pep"  : { func: function(self, args, file){ var result = self.command_ep(args,                                             file);
+        "pep"  : { func: function(self, args, file){ var result = self.command_ep(args, file);
                                                      if (result) self.select(self.menu.getSelectedItem()) },
                    args: ["Episode"],
                    text: true,
@@ -1196,6 +1201,7 @@ DLNA_Browser.prototype._registerCallbacks = function() {
         // What font size to use for the menu text. Large sizes look the best.
         // * (int) Ex: `42` (font size fourtytwo). Cannot be lower than 1.
         font_size: 40,
+        description_font_size: 12,
         // Whether to show the "[h for help]" hint on the first launch.
         // * (bool) Ex: `yes` (enable) or `no` (disable).
         help_hint: true,
@@ -1221,10 +1227,11 @@ DLNA_Browser.prototype._registerCallbacks = function() {
 
     // Create and initialize the media browser instance.
     try {
-        var browser = new DLNA_Browser({ // Throws.
+        var browser = new DLNA_Browser({
             autoCloseDelay: userConfig.getValue('auto_close'),
             maxLines: userConfig.getValue('max_lines'),
             menuFontSize: userConfig.getValue('font_size'),
+            descriptionFontSize: userConfig.getValue('description_font_size'),
             showHelpHint: userConfig.getValue('help_hint'),
             serverNames: userConfig.getMultiValue('server_names'),
             serverAddrs: userConfig.getMultiValue('server_addrs'),
