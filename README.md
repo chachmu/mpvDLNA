@@ -71,3 +71,7 @@ Given an absolute episode number (The episodes total position in the series inst
 This can be rather slow the first time it is called after opening MPV on longer series as mpvDLNA will have to fetch the information about every season preceding the one containing the correct episode and then every episode in that season preceding the episode itself. Successive calls for that series (up to the episode number loaded previously) should be very fast as mpvDLNA will have already stored the information it needs.
 
 Can potentially find the wrong episode if there are missing seasons or incomplete seasons that it can't pull the final episode number from.
+
+
+# Troubleshooting and Feature Requests
+If you have any issues with mpvDLNA or have features you would like to request feel free to [make an issue](https://github.com/chachmu/mpvDLNA/issues/new/choose) or send me an email and I will try to take a look. As a warning I may not respond immediately or be willing to implement every feature but I always welcome feedback!
