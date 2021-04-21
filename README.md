@@ -1,5 +1,5 @@
 # mpvDLNA
-A plugin to allow mpv to browse and watch content hosted on DLNA servers. Follow the Installation Instructions [here](https://github.com/chachmu/mpvDLNA#Installation_Instructions)
+A plugin to allow mpv to browse and watch content hosted on DLNA servers. Follow the Installation Instructions [here](https://github.com/chachmu/mpvDLNA#installation-instructions)
 
 ## Usage
 mpvDLNA has two main methods of interacting with DLNA servers. 
@@ -16,7 +16,7 @@ Command mode opens a psuedo command prompt that allows for a variety of commands
 |   text  |     N/A     |         N        |              Switch to Text Mode              |
 |    cd   |     N/A     |         Y        |        Access an item (or begin playback)     |
 |   info  |     N/A     |         Y        |          Query the server for metadata        |
-|    ep   |  Episode #  |         Y        | Find an episode based on episode # ([see more](https://github.com/chachmu/mpvDLNA#More_On_ep)) |
+|    ep   |  Episode #  |         Y        | Find an episode based on episode # ([see more](https://github.com/chachmu/mpvDLNA#more-on-ep)) |
 |   pep   |  Episode #  |         Y        |     Call ep and begin playback on the file    |
 |   wake  | MAC Address |         N        |            Send a wake on lan packet          |
 
