@@ -190,6 +190,9 @@ var DLNA_Browser = function(options) {
     // List of unfinished typed command argument
     this.typing_argument= "";
     this.result_displayed = true;
+
+    // Send startup MAC Address wake on lan packets
+    options.startupMacAddresses.forEach(function(addr) { self.command_wake([addr]) });
 };
 
 
@@ -1208,6 +1211,7 @@ DLNA_Browser.prototype._registerCallbacks = function() {
         server_names: '',
         server_addrs: '',
         mac_addresses: '',
+        startup_mac_addresses:'',
 
         // Keybindings. You can bind any action to multiple keys simultaneously.
         // * (string) Ex: `{up}`, `{up}+{shift+w}` or `{x}+{+}` (binds to "x" and the plus key).
@@ -1235,6 +1239,7 @@ DLNA_Browser.prototype._registerCallbacks = function() {
             serverNames: userConfig.getMultiValue('server_names'),
             serverAddrs: userConfig.getMultiValue('server_addrs'),
             macAddresses: userConfig.getMultiValue('mac_addresses'),
+            startupMacAddresses: userConfig.getMultiValue('startup_mac_addresses'),
             keyRebindings: {
                 'Menu-Up': userConfig.getMultiValue('keys_menu_up'),
                 'Menu-Down': userConfig.getMultiValue('keys_menu_down'),
