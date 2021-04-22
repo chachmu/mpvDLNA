@@ -42,7 +42,6 @@ var DLNA_Browser = function(options) {
     this.showHelpHint = typeof options.showHelpHint === 'boolean' ?
         options.showHelpHint : true;
 
-    mp.msg.error(options.descriptionFontSize)
     this.descriptionSize = options.descriptionFontSize;
     if (this.descriptionSize === null) {
         this.descriptionSize = options.menuFontSize / 4.5;
