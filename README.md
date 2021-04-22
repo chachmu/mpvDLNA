@@ -67,6 +67,9 @@ server_addrs={Address1}+{Address2}
 # List of mac addresses to autocomplete for wake on lan
 mac_addresses={MAC_ID1}+{MAC_ID2}
 
+# List of mac addresses to send a wake on lan packet to on startup
+startup_mac_addresses={MAC_ID1}+{MAC_ID2}
+
 # Font size of menu elements
 font_size=35
 
