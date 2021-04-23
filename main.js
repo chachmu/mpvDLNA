@@ -1,4 +1,4 @@
-// mpvDLNA 3.0.2
+// mpvDLNA 3.0.3
 
 "use strict";
 
@@ -297,7 +297,9 @@ DLNA_Browser.prototype.typing_action = function(key) {
         }
     } else if (key == "backspace") {
         // can't backspace if at the start of the line
+        var removed = "";
         if (this.typing_position) {
+            removed = this.typing_text.slice(this.typing_position-1, this.typing_position);
             this.typing_text = this.typing_text.slice(0, this.typing_position-1)
             + this.typing_text.slice(this.typing_position);
 
@@ -305,8 +307,18 @@ DLNA_Browser.prototype.typing_action = function(key) {
         }
 
         if (this.typing_mode == "command" && this.command != null) {
+            // The backspace effected the command
             if (this.typing_position <= this.command.length) {
                 this.command = null;
+                this.typing_output = "";
+            // The backspace effected an argument
+            } else if (removed == " "){
+                var arg_lengths = 0;
+                this.arguments.forEach(function(arg){arg_lengths+=arg.length+1});
+
+                if (this.typing_position <= this.command.length + arg_lengths + 1) {
+                    this.arguments.pop();
+                }
             }
         }
     } else if (key == "ctrl+backspace") {
@@ -316,6 +328,8 @@ DLNA_Browser.prototype.typing_action = function(key) {
         this.typing_text = "";
         if (this.typing_mode == "command") {
             this.command = null;
+            this.arguments = [];
+            this.typing_argument = "";
         }
     } else if (key == "delete") {
         this.typing_text = this.typing_text.slice(0, this.typing_position)
@@ -393,8 +407,10 @@ DLNA_Browser.prototype.typing_action = function(key) {
         // Look for a valid command
         if (this.command == null) {
             this.arguments = [];
-            if (this.typing_text[this.typing_text.length-1] == " ") {
-                var search = this.selected_auto.full;
+
+            // Check if the first piece of the input is a valid command
+            if (this.typing_text.split(" ").length > 1) {
+                var search = this.typing_text.split(" ")[0];
 
                 for (var i = 0; i < this.command_list.length; i++) {
                     if (this.command_list[i].toUpperCase() == search.toUpperCase()) {
@@ -403,7 +419,7 @@ DLNA_Browser.prototype.typing_action = function(key) {
                     }
                 }
 
-            // autocomplete the command
+            // Otherwise try to autocomplete the command
             } else {
                 message = this.autocomplete_command(this.typing_text, message, tabbing, this.command_list);
             }
@@ -442,6 +458,7 @@ DLNA_Browser.prototype.typing_action = function(key) {
                 this.arguments.forEach(function(arg){arg_lengths+=arg.length+1});
 
                 var argument = this.typing_text.slice(this.command.length + arg_lengths + 1);
+                this.typing_argument = "";
 
                 var index = message.split(" ").slice(0,-1).join(" ").length + 1
                 var msg = message.slice(index);
