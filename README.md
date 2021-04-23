@@ -78,7 +78,7 @@ description_font_size=10
 ```
 
 ## More on `ep`
-Given an absolute episode number (The episodes total position in the series instead of just its place in a season) and a show `ep` will try to scan through the show's various seasons to find the episode that matches.
+Given an absolute episode number (The episodes total position in the series instead of just its place in a season) and a series `ep` will try to scan through the show's various seasons to find the episode that matches.
 
 This can be rather slow the first time it is called after opening MPV on longer series as mpvDLNA will have to fetch the information about every season preceding the one containing the correct episode and then every episode in that season preceding the episode itself. Successive calls for that series (up to the episode number loaded previously) should be very fast as mpvDLNA will have already stored the information it needs.
 
