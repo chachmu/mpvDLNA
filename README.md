@@ -8,7 +8,11 @@ mpvDLNA has two main methods of interacting with DLNA servers.
 Toggling the Menu will automatically scan for DLNA servers on the network if it does not have default servers defined in the config file. Once it has finished scanning it will display a list of servers. The arrow keys can be used to navigate the menu and selecting an entry in the list with the enter key (or right arrow key) will access it. Hitting the left arrow key will move back a folder. Attempting to access an empty folder will not enter the folder, instead it will turn the folder's name red. Accessing a media file will start playback while also adding playlist entries for the previous and next episodes so you can skip forwards and backwards without issues.
 
 ### Text/Command
-Command mode opens a psuedo command prompt that allows for a variety of commands. File Input is essentially an argument that comes at the end of the command that is required to match an entry on the DLNA server through autocompletion or the command won't execute (Since the command has to be executed on an existing entry). Normal arguments will display a hint under the command input specifying what type of argument is expected. Calling `cd` on `..` will move back a folder.
+Command mode opens a psuedo command prompt that allows for a variety of commands.
+
+Both Command and Text mode support a fairly robust case insensitive autocompletion feature for commands (and certain types of arguments) that can also match the input to any part of the result although it sorts its recommendations by how close to the front of the string it found the input. For example, typing `re` might cause the autocompletion to first recommend "B***re***aking Bad" but tabbing through the suggestions you could find "The Wi***re***" (examples taken from the IMDb Most Popular TV Shows page).
+
+File Input is essentially an argument that comes at the end of the command that is required to match an entry on the DLNA server through autocompletion or the command won't execute (Since the command has to be executed on an existing entry). Normal arguments will display a hint under the command input specifying what type of argument is expected. Calling `cd` on `..` will move back a folder.
 
 | Command |  Argument   | File Input (Y/N) |                  Explanation                  |
 | :-----: | :---------: | :-------------:  | --------------------------------------------- |
