@@ -1,4 +1,4 @@
-// mpvDLNA 3.0.3
+// mpvDLNA 3.1.3
 
 "use strict";
 
@@ -30,6 +30,30 @@ var DLNA_Server = function(name, url) {
     this.type = "server"
 };
 
+// Helper function to remove first element and trailing newlines
+var removeNL = function(sp) {
+    for (var i = 0; i < sp.length; i++) {
+        mp.msg.error("testing "+sp[i]+"|");
+        var s = sp[i]
+        if (s[s.length - 1] == "\r") {
+            mp.msg.error("removing r");
+            s = s.slice(0, -1);
+        }
+
+        if (s[s.length - 1] == "\n") {
+            mp.msg.error("removing n");
+            s = s.slice(0, -1);
+        }
+
+        sp[i] = s;
+    }
+
+    if (!sp[0] || !sp[0].length) {
+        sp.shift();
+    }
+
+    return sp;
+};
 
 
 // Class to browse DLNA servers
@@ -210,15 +234,14 @@ DLNA_Browser.prototype.findDLNAServers = function() {
         name: "subprocess",
         playback_only: false,
         capture_stdout: true,
-        args : ["python", mp.get_script_directory()+"\\mpvDLNA.py", "-l", "1"]
+        args : ["python", mp.get_script_directory()+"/mpvDLNA.py", "-l", "1"]
     });
 
-    var sp = result.stdout.split("\n");
+    // Get the output, delete the first element if empty, and remove trailing newlines
+    var sp = removeNL(result.stdout.split("\n"));
 
-    // The first element of sp is not useful here
-    for (var i = 1; i < sp.length; i=i+3) {
-        // Need to remove the trailing \n from each entry
-        var server = new DLNA_Server(sp[i].slice(0, -1), sp[i+1].slice(0, -1));
+    for (var i = 0; i < sp.length; i=i+3) {
+        var server = new DLNA_Server(sp[i], sp[i+1]);
         this.servers.push(server);
     }
     this.menu.title = "Servers";
@@ -891,13 +914,15 @@ DLNA_Browser.prototype.command_wake = function(args) {
             name: "subprocess",
             playback_only: false,
             capture_stdout: true,
-            args : ["python", mp.get_script_directory()+"\\mpvDLNA.py", "-w", args[0]]
+            args : ["python", mp.get_script_directory()+"/mpvDLNA.py", "-w", args[0]]
         });
 
-    // Need to remove two trailing newline characters
-    if (result.stdout.slice(0, -2) == "packet sent") {
+    // Get the output, delete the first element if empty, and remove trailing newlines
+    var sp = removeNL(result.stdout.split("\n"));
+
+    if (sp[0] == "packet sent") {
         this.typing_output = "Packet Sent";
-    } else if (result.stdout.slice(0, -2) == "import failed"){
+    } else if (sp[0] == "import failed"){
         this.typing_output = Ass.color("FF0000", true) + "wakeonlan python package not installed";
     } else {
         this.typing_output = Ass.color("FF0000", true) + "unspecified error";
@@ -1026,13 +1051,15 @@ DLNA_Browser.prototype.getChildren = function(selection) {
             name: "subprocess",
             playback_only: false,
             capture_stdout: true,
-            args : ["python", mp.get_script_directory()+"\\mpvDLNA.py", "-b", this.parents[0].url, selection.id]
+            args : ["python", mp.get_script_directory()+"/mpvDLNA.py", "-b", this.parents[0].url, selection.id]
         });
 
-        var sp = result.stdout.split("\n");
+        // Get the output, delete the first element if empty, and remove trailing newlines
+        var sp = removeNL(result.stdout.split("\n"));
+        mp.msg.error(sp);
 
         // Tells us if we are getting item or container type data
-        var is_item = sp[0].slice(0, -1)=="item";
+        var is_item = sp[0] == "item";
         var increase = (is_item ? 4 : 3);
         var max_length = (is_item ? 1 : 2)
 
@@ -1041,11 +1068,10 @@ DLNA_Browser.prototype.getChildren = function(selection) {
         // The first 2 elements of sp are not useful here
         for (var i = 2; i+max_length < sp.length; i=i+increase) {
 
-            // Need to remove the trailing \n from each entry
-            var child = new DLNA_Node(sp[i].slice(0, -1), sp[i+1].slice(0, -1));
+            var child = new DLNA_Node(sp[i], sp[i+1]);
 
             if (is_item) {
-                child.url = sp[i+2].slice(0,-1);
+                child.url = sp[i+2];
             }
 
             children.push(child);
@@ -1123,15 +1149,16 @@ DLNA_Browser.prototype.info = function(selection) {
             name: "subprocess",
             playback_only: false,
             capture_stdout: true,
-            args : ["python", mp.get_script_directory()+"\\mpvDLNA.py", "-i", this.parents[0].url, selection.id]
+            args : ["python", mp.get_script_directory()+"/mpvDLNA.py", "-i", this.parents[0].url, selection.id]
         });
 
-        var sp = result.stdout.split("\n");
+        // Get the output, delete the first element if empty, and remove trailing newlines
+        var sp = removeNL(result.stdout.split("\n"));
 
         var info = {start: 1, end: 1, description: ""}
 
         // Tells us if we are getting item or container type data
-        var is_item = sp[0].slice(0, -1)=="item";
+        var is_item = sp[0] == "item";
 
         if (is_item) {
             // The first 2 elements of sp are not useful here, get the episode number
