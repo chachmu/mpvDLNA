@@ -33,15 +33,12 @@ var DLNA_Server = function(name, url) {
 // Helper function to remove first element and trailing newlines
 var removeNL = function(sp) {
     for (var i = 0; i < sp.length; i++) {
-        mp.msg.error("testing "+sp[i]+"|");
         var s = sp[i]
         if (s[s.length - 1] == "\r") {
-            mp.msg.error("removing r");
             s = s.slice(0, -1);
         }
 
         if (s[s.length - 1] == "\n") {
-            mp.msg.error("removing n");
             s = s.slice(0, -1);
         }
 
@@ -1056,7 +1053,6 @@ DLNA_Browser.prototype.getChildren = function(selection) {
 
         // Get the output, delete the first element if empty, and remove trailing newlines
         var sp = removeNL(result.stdout.split("\n"));
-        mp.msg.error(sp);
 
         // Tells us if we are getting item or container type data
         var is_item = sp[0] == "item";
