@@ -1,4 +1,4 @@
-// mpvDLNA 3.1.3
+// mpvDLNA 3.1.4
 
 "use strict";
 
@@ -32,23 +32,28 @@ var DLNA_Server = function(name, url) {
 
 // Helper function to remove first element and trailing newlines
 var removeNL = function(sp) {
+    mp.msg.trace("    Calling removeNL")
     for (var i = 0; i < sp.length; i++) {
         var s = sp[i]
         if (s[s.length - 1] == "\r") {
             s = s.slice(0, -1);
+            mp.msg.trace("        item "+i+" ended with \\r");
         }
 
         if (s[s.length - 1] == "\n") {
             s = s.slice(0, -1);
+            mp.msg.trace("        item "+i+" ended with \\n");
         }
 
         sp[i] = s;
     }
 
     if (!sp[0] || !sp[0].length) {
+        mp.msg.trace("        item "+i+" is now empty");
         sp.shift();
     }
 
+    mp.msg.trace("    Returning removeNL")
     return sp;
 };
 
@@ -231,8 +236,11 @@ DLNA_Browser.prototype.findDLNAServers = function() {
         name: "subprocess",
         playback_only: false,
         capture_stdout: true,
+        capture_stderr: true,
         args : ["python", mp.get_script_directory()+"/mpvDLNA.py", "-l", "1"]
     });
+
+    mp.msg.debug("mpvDLNA.py -l: " + result.stderr);
 
     // Get the output, delete the first element if empty, and remove trailing newlines
     var sp = removeNL(result.stdout.split("\n"));
@@ -538,7 +546,7 @@ DLNA_Browser.prototype.typing_parse = function() {
             if (cmd.text) {
                 // We have all the arguments and file text needed for the command
                 if (cmd.args.length == this.arguments.length && this.autocomplete.length != 0) {
-
+                    mp.msg.trace("Calling " + this.command + " with args: " + this.arguments);
                     if (this.arguments.length > 0) {
                         cmd.func(this, this.arguments, this.selected_auto.full);
                     } else {
@@ -551,6 +559,7 @@ DLNA_Browser.prototype.typing_parse = function() {
             } else {
                 // Command only needs its name
                 if (cmd.args.length == 0) {
+                    mp.msg.trace("Calling " + this.command + " with no args");
                     cmd.func(this);
                     this.result_displayed = !cmd.output;
                     success = true;
@@ -566,6 +575,7 @@ DLNA_Browser.prototype.typing_parse = function() {
                         this.arguments.push(this.typing_argument)
                     }
 
+                    mp.msg.trace("Calling " + this.command + " with args: " + this.arguments);
                     cmd.func(this, this.arguments);
                     this.result_displayed = !cmd.output;
                     success = true;
@@ -911,8 +921,11 @@ DLNA_Browser.prototype.command_wake = function(args) {
             name: "subprocess",
             playback_only: false,
             capture_stdout: true,
+            capture_stderr: true,
             args : ["python", mp.get_script_directory()+"/mpvDLNA.py", "-w", args[0]]
         });
+
+    mp.msg.debug("mpvDLNA.py -w: " + result.stderr);
 
     // Get the output, delete the first element if empty, and remove trailing newlines
     var sp = removeNL(result.stdout.split("\n"));
@@ -938,6 +951,7 @@ DLNA_Browser.prototype.on_file_load = function() {
         return;
     }
 
+    mp.msg.trace("on_file_load");
 
     var p_index = mp.get_property_number("playlist-playing-pos", 1);
     var playlist = mp.get_property_native("playlist", {});
@@ -961,11 +975,10 @@ DLNA_Browser.prototype.on_file_load = function() {
 
     // Update the now playing indicator and rerender the menu if necessary
     folder[episode.id].isPlaying = true;
-    if (this.menu.isMenuActive()) {
-        this.menu.renderMenu();
-    }
+    this.menu.renderMenu("", 1);
 
     // Set the title to match the current episode
+    mp.msg.trace("setting title to: " + episode.folder.name + ": " + folder[episode.id].name);
     mp.set_property("force-media-title", episode.folder.name + ":   " + folder[episode.id].name);
     this.playingUrl = episode.url;
 
@@ -984,6 +997,7 @@ DLNA_Browser.prototype.on_file_load = function() {
                                      id: episode.id-1,
                                     url: prev.url
             });
+            mp.msg.trace("Added previous episode to playlist");
         }
     }
 
@@ -1001,6 +1015,7 @@ DLNA_Browser.prototype.on_file_load = function() {
                                      id: episode.id+1,
                                     url: next.url
             });
+            mp.msg.trace("Added next episode to playlist");
         }
     }
 };
@@ -1048,8 +1063,11 @@ DLNA_Browser.prototype.getChildren = function(selection) {
             name: "subprocess",
             playback_only: false,
             capture_stdout: true,
+            capture_stderr: true,
             args : ["python", mp.get_script_directory()+"/mpvDLNA.py", "-b", this.parents[0].url, selection.id]
         });
+
+        mp.msg.debug("mpvDLNA.py -b: " + result.stderr);
 
         // Get the output, delete the first element if empty, and remove trailing newlines
         var sp = removeNL(result.stdout.split("\n"));
@@ -1079,14 +1097,17 @@ DLNA_Browser.prototype.getChildren = function(selection) {
 }
 
 DLNA_Browser.prototype.select = function(selection) {
+    mp.msg.debug("selecting");
     if (!selection) {
-        return false;
+        mp.msg.debug("selection was invalid");
     }
 
     if (selection.type == "server") {
+        mp.msg.debug("selecting server: " + selection.name);
         this.parents = [selection];
         this.titles = [];
     } else if (selection.type == "node") {
+        mp.msg.debug("selecting node: " + selection.name);
         if (selection.url === null) {
             this.parents.push(selection)
         } else {
@@ -1109,6 +1130,7 @@ DLNA_Browser.prototype.select = function(selection) {
         }
     } else {
         // This should never happen
+        mp.msg.debug("selection type invalid");
         return false;
     }
 
@@ -1119,14 +1141,18 @@ DLNA_Browser.prototype.select = function(selection) {
 
     // If the selection has no children then don't bother moving to it
     if (this.parents[this.parents.length-1].children.length == 0) {
+        mp.msg.debug("selection was empty");
         this.parents.pop();
     } else {
         // Update the title and menu to the new selection
         this.titles.push(selection.name);
         this.generateMenuTitle();
+        mp.msg.trace("generated menu title");
 
         this.current_folder = this.parents[this.parents.length-1].children;
+        mp.msg.trace("set current folder");
         this.menu.setOptions(this.parents[this.parents.length-1].children, 0);
+        mp.msg.trace("set options");
         success = true;
     }
 
@@ -1145,8 +1171,11 @@ DLNA_Browser.prototype.info = function(selection) {
             name: "subprocess",
             playback_only: false,
             capture_stdout: true,
+            capture_stderr: true,
             args : ["python", mp.get_script_directory()+"/mpvDLNA.py", "-i", this.parents[0].url, selection.id]
         });
+
+        mp.msg.debug("mpvDLNA.py -i: " + result.stderr);
 
         // Get the output, delete the first element if empty, and remove trailing newlines
         var sp = removeNL(result.stdout.split("\n"));
