@@ -1,4 +1,4 @@
-// mpvDLNA 3.1.4
+// mpvDLNA 3.1.5
 
 "use strict";
 
@@ -85,11 +85,50 @@ var DLNA_Browser = function(options) {
 
     var self = this;
 
+
     // Only use menu text colors while mpv is rendering in GUI mode (non-CLI).
     this.menu.setUseTextColors(mp.get_property_bool('vo-configured'));
     mp.observe_property('vo-configured', 'bool', function(name, value) {
         self.menu.setUseTextColors(value);
     });
+
+
+    // Determine how to call python
+    this.python = null;
+    var versions = ["python", "python3"];
+
+    // If the .conf file specifies an option, test it first
+    if (options.python_version) {
+        versions.unshift(options.python_version);
+    }
+
+    // Test each option
+    for (var i = 0; i < versions.length; i++) {
+        var result = mp.command_native({
+            name: "subprocess",
+            playback_only: false,
+            capture_stdout: true,
+            capture_stderr: true,
+            args : [versions[i], mp.get_script_directory()+"/mpvDLNA.py", "-v"]
+        });
+
+        if (result.status != 0) {
+            mp.msg.debug("calling python as " + versions[i] + " errored with: " + result.stderr);
+        } else {
+            this.python = versions[i];
+            break;
+        }
+    }
+
+    // None of the options worked, throw an error
+    if (this.python == null) {
+        throw new Error("Unable to find a correctly configured python call: \n \
+        in the following options: " + versions +
+        "\n         Please add the name of your python install to the .conf file \n \
+        using the format: python_version=python \n \
+        or run mpv with the --msg-level=mpvDLNA=trace argument to see the errors");
+    }
+
 
     // list of the parents of the current node.
     // The first element represents the server we are currently browsing
@@ -237,7 +276,7 @@ DLNA_Browser.prototype.findDLNAServers = function() {
         playback_only: false,
         capture_stdout: true,
         capture_stderr: true,
-        args : ["python", mp.get_script_directory()+"/mpvDLNA.py", "-l", "1"]
+        args : [this.python, mp.get_script_directory()+"/mpvDLNA.py", "-l", "1"]
     });
 
     mp.msg.debug("mpvDLNA.py -l: " + result.stderr);
@@ -922,7 +961,7 @@ DLNA_Browser.prototype.command_wake = function(args) {
             playback_only: false,
             capture_stdout: true,
             capture_stderr: true,
-            args : ["python", mp.get_script_directory()+"/mpvDLNA.py", "-w", args[0]]
+            args : [this.python, mp.get_script_directory()+"/mpvDLNA.py", "-w", args[0]]
         });
 
     mp.msg.debug("mpvDLNA.py -w: " + result.stderr);
@@ -1064,7 +1103,7 @@ DLNA_Browser.prototype.getChildren = function(selection) {
             playback_only: false,
             capture_stdout: true,
             capture_stderr: true,
-            args : ["python", mp.get_script_directory()+"/mpvDLNA.py", "-b", this.parents[0].url, selection.id]
+            args : [this.python, mp.get_script_directory()+"/mpvDLNA.py", "-b", this.parents[0].url, selection.id]
         });
 
         mp.msg.debug("mpvDLNA.py -b: " + result.stderr);
@@ -1172,7 +1211,7 @@ DLNA_Browser.prototype.info = function(selection) {
             playback_only: false,
             capture_stdout: true,
             capture_stderr: true,
-            args : ["python", mp.get_script_directory()+"/mpvDLNA.py", "-i", this.parents[0].url, selection.id]
+            args : [this.python, mp.get_script_directory()+"/mpvDLNA.py", "-i", this.parents[0].url, selection.id]
         });
 
         mp.msg.debug("mpvDLNA.py -i: " + result.stderr);
@@ -1281,6 +1320,7 @@ DLNA_Browser.prototype._registerCallbacks = function() {
         server_addrs: '',
         mac_addresses: '',
         startup_mac_addresses:'',
+        python_version: '',
 
         // Keybindings. You can bind any action to multiple keys simultaneously.
         // * (string) Ex: `{up}`, `{up}+{shift+w}` or `{x}+{+}` (binds to "x" and the plus key).
@@ -1309,6 +1349,7 @@ DLNA_Browser.prototype._registerCallbacks = function() {
             serverAddrs: userConfig.getMultiValue('server_addrs'),
             macAddresses: userConfig.getMultiValue('mac_addresses'),
             startupMacAddresses: userConfig.getMultiValue('startup_mac_addresses'),
+            python_version: userConfig.getValue('python_version'),
             keyRebindings: {
                 'Menu-Up': userConfig.getMultiValue('keys_menu_up'),
                 'Menu-Down': userConfig.getMultiValue('keys_menu_down'),
