@@ -79,6 +79,9 @@ font_size=35
 
 # Font size of metadata description from the `info` command
 description_font_size=10
+
+# Command to use when calling python
+python_version=python3
 ```
 
 ## More on `ep`
