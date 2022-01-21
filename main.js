@@ -32,28 +32,23 @@ var DLNA_Server = function(name, url) {
 
 // Helper function to remove first element and trailing newlines
 var removeNL = function(sp) {
-    mp.msg.trace("    Calling removeNL")
     for (var i = 0; i < sp.length; i++) {
         var s = sp[i]
         if (s[s.length - 1] == "\r") {
             s = s.slice(0, -1);
-            mp.msg.trace("        item "+i+" ended with \\r");
         }
 
         if (s[s.length - 1] == "\n") {
             s = s.slice(0, -1);
-            mp.msg.trace("        item "+i+" ended with \\n");
         }
 
         sp[i] = s;
     }
 
     if (!sp[0] || !sp[0].length) {
-        mp.msg.trace("        item "+i+" is now empty");
         sp.shift();
     }
 
-    mp.msg.trace("    Returning removeNL")
     return sp;
 };
 

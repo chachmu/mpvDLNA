@@ -85,7 +85,7 @@ def list(timeout):
 
     for device in devices:
         print("")
-        print(device.friendly_name)
+        print(device.friendly_name.encode().decode("ascii", errors='ignore'))
         print(device.location)
 
 
