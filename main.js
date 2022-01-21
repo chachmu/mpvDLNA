@@ -1,4 +1,4 @@
-// mpvDLNA 3.1.5
+// mpvDLNA 3.2.0
 
 "use strict";
 
@@ -124,6 +124,8 @@ var DLNA_Browser = function(options) {
         or run mpv with the --msg-level=mpvDLNA=trace argument to see the errors");
     }
 
+    // How long to spend searching for DLNA servers
+    this.timeout = options.timeout
 
     // list of the parents of the current node.
     // The first element represents the server we are currently browsing
@@ -271,7 +273,7 @@ DLNA_Browser.prototype.findDLNAServers = function() {
         playback_only: false,
         capture_stdout: true,
         capture_stderr: true,
-        args : [this.python, mp.get_script_directory()+"/mpvDLNA.py", "-l", "1"]
+        args : [this.python, mp.get_script_directory()+"/mpvDLNA.py", "-l", this.timeout]
     });
 
     mp.msg.debug("mpvDLNA.py -l: " + result.stderr);
@@ -1316,6 +1318,7 @@ DLNA_Browser.prototype._registerCallbacks = function() {
         mac_addresses: '',
         startup_mac_addresses:'',
         python_version: '',
+        timeout: '1',
 
         // Keybindings. You can bind any action to multiple keys simultaneously.
         // * (string) Ex: `{up}`, `{up}+{shift+w}` or `{x}+{+}` (binds to "x" and the plus key).
@@ -1345,6 +1348,7 @@ DLNA_Browser.prototype._registerCallbacks = function() {
             macAddresses: userConfig.getMultiValue('mac_addresses'),
             startupMacAddresses: userConfig.getMultiValue('startup_mac_addresses'),
             python_version: userConfig.getValue('python_version'),
+            timeout: userConfig.getValue('timeout'),
             keyRebindings: {
                 'Menu-Up': userConfig.getMultiValue('keys_menu_up'),
                 'Menu-Down': userConfig.getMultiValue('keys_menu_down'),
