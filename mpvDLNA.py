@@ -26,9 +26,9 @@ def wake(mac):
     else:
         print("import failed")
 
-def info(url, id):
+def info(url, id, count):
     device = upnpclient.Device(url)
-    result = device.ContentDirectory.Browse(ObjectID=id, BrowseFlag="BrowseMetadata", Filter="*", StartingIndex=0, RequestedCount=2000, SortCriteria="")
+    result = device.ContentDirectory.Browse(ObjectID=id, BrowseFlag="BrowseMetadata", Filter="*", StartingIndex=0, RequestedCount=count, SortCriteria="")
     root = etree.fromstring(result["Result"])
 
     # Determine if we should be looking at items or containers
@@ -45,26 +45,27 @@ def info(url, id):
         print(t.findtext("dc:description", "No Description", root.nsmap).encode().decode("ascii", errors='ignore'))
 
 
-def browse(url, id):
+def browse(url, id, count):
     device = upnpclient.Device(url)
-    result = device.ContentDirectory.Browse(ObjectID=id, BrowseFlag="BrowseDirectChildren", Filter="*", StartingIndex=0, RequestedCount=2000, SortCriteria="")
+    result = device.ContentDirectory.Browse(ObjectID=id, BrowseFlag="BrowseDirectChildren", Filter="*", StartingIndex=0, RequestedCount=count, SortCriteria="")
     root = etree.fromstring(result["Result"])
 
+    list = {}
+
     # Determine if we should be looking at items or containers
-    list = root.findall("./item", root.nsmap)
-    type = "item"
-    if len(list) == 0:
-        list = root.findall("./container", root.nsmap)
-        type = "container"
+    list["item"] = root.findall("./item", root.nsmap)
+    list["container"] = root.findall("./container", root.nsmap)
 
-    print(type)
-    for t in list:
-        print("")
-        print(t.findtext("dc:title", "untitled", root.nsmap).encode().decode("ascii", errors='ignore'))
-        print(t.get("id"))
+    for type in list.keys():
+        print(type + "s:")
+        for t in list[type]:
+            print("")
+            print(t.findtext("dc:title", "untitled", root.nsmap).encode().decode("ascii", errors='ignore'))
+            print(t.get("id"))
 
-        if type == "item":
-            print(t.findtext("res", "", root.nsmap))
+            if type == "item":
+                print(t.findtext("res", "", root.nsmap))
+        print("----")
 
 
 def list(timeout):
@@ -111,11 +112,15 @@ elif len(sys.argv) == 3:
         wake(sys.argv[2])
     else:
         help()
-elif len(sys.argv) == 4:
+elif len(sys.argv) >= 4:
+    count = 2000
+    if len(sys.argv) == 5:
+        count = sys.argv[4]
+
     if sys.argv[1] == "-b" or sys.argv[1] == "--browse":
-        browse(sys.argv[2], sys.argv[3])
+        browse(sys.argv[2], sys.argv[3], count)
     elif sys.argv[1] == "-i" or sys.argv[1] == "--info":
-        info(sys.argv[2], sys.argv[3])
+        info(sys.argv[2], sys.argv[3], count)
     else:
         help()
 else:

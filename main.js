@@ -1,4 +1,4 @@
-// mpvDLNA 3.2.0
+// mpvDLNA 3.3.0
 
 "use strict";
 
@@ -1103,28 +1103,30 @@ DLNA_Browser.prototype.getChildren = function(selection) {
             args : [this.python, mp.get_script_directory()+"/mpvDLNA.py", "-b", this.parents[0].url, selection.id]
         });
 
-        mp.msg.debug("mpvDLNA.py -b: " + result.stderr);
-
-        // Get the output, delete the first element if empty, and remove trailing newlines
-        var sp = removeNL(result.stdout.split("\n"));
-
-        // Tells us if we are getting item or container type data
-        var is_item = sp[0] == "item";
-        var increase = (is_item ? 4 : 3);
-        var max_length = (is_item ? 1 : 2)
-
+        var categories = result.stdout.split("----")
         var children = [];
 
-        // The first 2 elements of sp are not useful here
-        for (var i = 2; i+max_length < sp.length; i=i+increase) {
+        // Check for items, then collections
+        for (var category = 0; category < 2; category++) {
+            // Get the output, delete the first element if empty, and remove trailing newlines
+            var sp = removeNL(categories[category].split("\n"));
 
-            var child = new DLNA_Node(sp[i], sp[i+1]);
+            // Tells us if we are getting item or container type data
+            var is_item = sp[0] == "items:";
+            var increase = (is_item ? 4 : 3);
+            var max_length = (is_item ? 1 : 2)
 
-            if (is_item) {
-                child.url = sp[i+2];
+            // The first 2 elements of sp are not useful here
+            for (var i = 2; i+max_length < sp.length; i=i+increase) {
+
+                var child = new DLNA_Node(sp[i], sp[i+1]);
+
+                if (is_item) {
+                    child.url = sp[i+2];
+                }
+
+                children.push(child);
             }
-
-            children.push(child);
         }
         selection.children = children;
     }
