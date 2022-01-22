@@ -30,9 +30,9 @@ Text Mode is similar to Command Mode except it is only for navigating the DLNA s
 ## Installation Instructions
 This script requires an installation of [mpv.io](https://mpv.io) that was built to support javascript and lua. 
 
-1. Download the mpvDLNA folder (either by cloning the repository or by downloading a zip of the [latest release](https://github.com/chachmu/mpvDLNA/releases)) 
+1. Download the mpvDLNA folder either by cloning the repository or by downloading a zip of the [latest release](https://github.com/chachmu/mpvDLNA/releases) (make sure the folder is named `mpvDLNA`, the releases tend to add a version number to the end which can cause problems)
 
-2. Put the mpvDLNA folder in the /scripts folder for mpv (`~/.config/mpv/scripts/` for Linux or macOS or `C:/Users/Username/AppData/Roaming/mpv/scripts/` for Windows).
+2. Put the mpvDLNA folder in the `/scripts` folder for mpv (`~/.config/mpv/scripts/` for Linux or macOS or `C:/Users/Username/AppData/Roaming/mpv/scripts/` for Windows).
 
 3.  Bind hotkeys (You can set your own but I personally like these keys) by adding these lines to `input.conf` (`~/.config/mpv/input.conf` for Linux or macOS or `C:/Users/Username/AppData/Roaming/mpv/input.conf` for Windows)
     * Toggle the Menu: `ctrl+b script-binding toggle_mpvDLNA`
@@ -60,7 +60,7 @@ Supported Commands:
 |-w, --wake   | Takes a MAC address and attempts to send a wake on lan packet to it                             |
 
 ## Config File Example
-The config file must be named mpvDLNA.conf and be placed in a folder called `/script-settings` next to the `/script` folder (_NOT INSIDE_).
+The config file must be named mpvDLNA.conf and be placed in a folder called `/script-settings` in the same directory as the `/script` folder (_NOT INSIDE_).
 
 ```
 # List of server names to automatically add without having to run scan
