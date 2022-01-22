@@ -127,6 +127,9 @@ var DLNA_Browser = function(options) {
     // How long to spend searching for DLNA servers
     this.timeout = options.timeout
 
+    // How many nodes to fetch from the DLNA server when making a request
+    this.count = options.count
+
     // list of the parents of the current node.
     // The first element represents the server we are currently browsing
     // The last element represents the node we are currently on
@@ -1100,7 +1103,7 @@ DLNA_Browser.prototype.getChildren = function(selection) {
             playback_only: false,
             capture_stdout: true,
             capture_stderr: true,
-            args : [this.python, mp.get_script_directory()+"/mpvDLNA.py", "-b", this.parents[0].url, selection.id]
+            args : [this.python, mp.get_script_directory()+"/mpvDLNA.py", "-b", this.parents[0].url, selection.id, this.count]
         });
 
         var categories = result.stdout.split("----")
@@ -1210,7 +1213,7 @@ DLNA_Browser.prototype.info = function(selection) {
             playback_only: false,
             capture_stdout: true,
             capture_stderr: true,
-            args : [this.python, mp.get_script_directory()+"/mpvDLNA.py", "-i", this.parents[0].url, selection.id]
+            args : [this.python, mp.get_script_directory()+"/mpvDLNA.py", "-i", this.parents[0].url, selection.id, this.count]
         });
 
         mp.msg.debug("mpvDLNA.py -i: " + result.stderr);
@@ -1321,6 +1324,7 @@ DLNA_Browser.prototype._registerCallbacks = function() {
         startup_mac_addresses:'',
         python_version: '',
         timeout: '1',
+        count: '2000',
 
         // Keybindings. You can bind any action to multiple keys simultaneously.
         // * (string) Ex: `{up}`, `{up}+{shift+w}` or `{x}+{+}` (binds to "x" and the plus key).
@@ -1351,6 +1355,7 @@ DLNA_Browser.prototype._registerCallbacks = function() {
             startupMacAddresses: userConfig.getMultiValue('startup_mac_addresses'),
             python_version: userConfig.getValue('python_version'),
             timeout: userConfig.getValue('timeout'),
+            count: userConfig.getValue('count'),
             keyRebindings: {
                 'Menu-Up': userConfig.getMultiValue('keys_menu_up'),
                 'Menu-Down': userConfig.getMultiValue('keys_menu_down'),
