@@ -30,7 +30,8 @@ Text Mode is similar to Command Mode except it is only for navigating the DLNA s
 ## Installation Instructions
 This script requires an installation of [mpv.io](https://mpv.io) that was built to support javascript and lua. 
 
-1. Download the mpvDLNA folder either by cloning the repository or by downloading a zip of the [latest release](https://github.com/chachmu/mpvDLNA/releases) (make sure the folder is named `mpvDLNA`, the releases tend to add a version number to the end which can cause problems)
+1. Download the mpvDLNA folder either by cloning the repository or by downloading a zip of the [latest release](https://github.com/chachmu/mpvDLNA/releases)  
+     (**make sure the folder is named `mpvDLNA`**, GitHub releases tend to add a version number to the end of the folder name which can cause problems)
 
 2. Put the mpvDLNA folder in the `/scripts` folder for mpv (`~/.config/mpv/scripts/` for Linux or macOS or `C:/Users/Username/AppData/Roaming/mpv/scripts/` for Windows).
 
