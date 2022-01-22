@@ -13,6 +13,15 @@
 /* jshint -W097 */
 /* global mp, exports, require */
 
+
+
+
+/* This is a slightly modified version of the Options module from VideoPlayerCode
+   that has been changed to better work with the mpvDLNA plugin.
+
+   Specifically it checks an additional location for the config file (/script-opts)
+*/
+
 'use strict';
 
 var ScriptConfig = function(options, identifier)
@@ -66,6 +75,8 @@ var ScriptConfig = function(options, identifier)
     if (this.scriptName && this.scriptName.length) {
         mp.msg.debug('Reading options for '+this.scriptName+'.');
         this.configFile = mp.find_config_file('script-settings/'+this.scriptName+'.conf');
+        if (!this.configFile) // Try legacy settings location as fallback.
+            this.configFile = mp.find_config_file('script-opts/'+this.scriptName+'.conf');
         if (!this.configFile) // Try legacy settings location as fallback.
             this.configFile = mp.find_config_file('lua-settings/'+this.scriptName+'.conf');
     }
