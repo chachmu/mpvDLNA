@@ -85,7 +85,7 @@ description_font_size=10
 python_version=python3
 
 # Length of time to spend searching for DLNA servers (Try increasing this if you are having trouble finding your server, default is 1 second)
-timeout = 20
+timeout=20
 
 # Number of nodes to fetch when making a request to the DLNA server (default is 2000)
 count=5000
