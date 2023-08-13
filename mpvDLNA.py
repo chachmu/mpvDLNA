@@ -16,6 +16,8 @@ import logging
 logging.getLogger("upnpclient").setLevel(logging.CRITICAL)
 logging.getLogger("ssdp").setLevel(logging.CRITICAL)
 
+sys.stdout.reconfigure(encoding='utf-8')
+
 def wake(mac):
     if wol:
         try:
@@ -42,7 +44,7 @@ def info(url, id, count):
     for t in list:
         print("")
         print(t.findtext("upnp:episodeNumber", "No Episode Number", root.nsmap))
-        print(t.findtext("dc:description", "No Description", root.nsmap).encode().decode("ascii", errors='ignore'))
+        print(t.findtext("dc:description", "No Description", root.nsmap))
 
 
 def browse(url, id, count):
@@ -60,7 +62,7 @@ def browse(url, id, count):
         print(type + "s:")
         for t in list[type]:
             print("")
-            print(t.findtext("dc:title", "untitled", root.nsmap).encode().decode("ascii", errors='ignore'))
+            print(t.findtext("dc:title", "untitled", root.nsmap))
             print(t.get("id"))
 
             if type == "item":
@@ -86,7 +88,7 @@ def list(timeout):
 
     for device in devices:
         print("")
-        print(device.friendly_name.encode().decode("ascii", errors='ignore'))
+        print(device.friendly_name)
         print(device.location)
 
 
