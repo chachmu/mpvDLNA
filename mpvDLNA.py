@@ -67,7 +67,7 @@ def browse(url, id, count):
 
             if type == "item":
                 print(t.findtext("res", "", root.nsmap))
-        print("----")
+        print("\x1F")
 
 
 def list(timeout):
