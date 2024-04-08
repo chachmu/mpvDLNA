@@ -1106,7 +1106,7 @@ DLNA_Browser.prototype.getChildren = function(selection) {
             args : [this.python, mp.get_script_directory()+"/mpvDLNA.py", "-b", this.parents[0].url, selection.id, this.count]
         });
 
-        var categories = result.stdout.split("----")
+        var categories = result.stdout.split("\x1F")
         var children = [];
 
         // Check for items, then collections
