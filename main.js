@@ -1,4 +1,4 @@
-// mpvDLNA 3.3.1
+// mpvDLNA 3.4.1
 
 "use strict";
 
