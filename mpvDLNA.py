@@ -1,7 +1,11 @@
 import sys
-import upnpclient
 
-from lxml import etree
+# Try to import upnp
+upnp = True
+try:
+    import upnpclient
+except ImportError as error:
+    upnp = False
 
 # Try to import wake on lan
 wol = True
@@ -10,6 +14,7 @@ try:
 except ImportError as error:
     wol = False
 
+from lxml import etree
 import logging
 # important information is passed through stdout so we need to supress
 # the output of the upnp client module
@@ -26,7 +31,7 @@ def wake(mac):
         except:
             print("send failed")
     else:
-        print("import failed")
+        print("wakeonlan import failed")
 
 def info(url, id, count):
     device = upnpclient.Device(url)
@@ -104,7 +109,9 @@ def help():
 
 if len(sys.argv) == 2:
     if sys.argv[1] == "-v" or sys.argv[1] == "--version":
-        print("mpvDLNA.py Plugin Version 2.0.0")
+        print("mpvDLNA.py Plugin Version 2.1.0")
+        if not upnp:
+            print("upnp import failed")
     else:
         help()
 elif len(sys.argv) == 3:
