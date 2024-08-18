@@ -43,6 +43,11 @@ Ass.esc = function(str, escape)
     return str.replace(/\\/g, '\\\u2060').replace(/\{/g, '\\{');
 };
 
+Ass.bold = function(bold, output)
+{
+    return output === false ? '' : '{\\b'+(bold === false ? '0' : '1')+'}';
+};
+
 Ass.size = function(fontSize, output)
 {
     return output === false ? '' : '{\\fs'+fontSize+'}';

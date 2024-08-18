@@ -301,7 +301,7 @@ var DLNA_Browser = function(options) {
 DLNA_Browser.prototype.findDLNAServers = function() {
     this.scan = false;
     this.menu.title = "Scanning for DLNA Servers";
-    this.menu.renderMenu("", 1);
+    this.menu.renderMenu(null, 1);
 
 
     mp.msg.info("scanning for dlna servers");
@@ -330,7 +330,7 @@ DLNA_Browser.prototype.findDLNAServers = function() {
     this.current_folder = this.servers;
     this.menu.setOptions(this.servers, 0);
 
-    this.menu.renderMenu("", 1);
+    this.menu.renderMenu(null, 1);
 };
 
 
@@ -846,7 +846,7 @@ DLNA_Browser.prototype.autocomplete_text = function(text, message, tabbing) {
 
         // Update the menu selection to match
         this.menu.selectionIdx = this.selected_auto.findex;
-        this.menu.renderMenu("", 1);
+        this.menu.renderMenu(null, 1);
 
         message = Ass.alpha("DDDD6E") + this.selected_auto.pre
         + Ass.alpha("00") + message + Ass.alpha("DDDD6E") + this.selected_auto.post;
@@ -950,7 +950,7 @@ DLNA_Browser.prototype.command_ep = function(args, text) {
                 if (episode_info.start <= s_target && s_target <= episode_info.end) {
                     this.select(selection.children[i]);
                     this.menu.selectionIdx = j;
-                    this.menu.renderMenu("", 1);
+                    this.menu.renderMenu(null, 1);
 
                     // Make the output look nice
                     var E = episode_info.start;
@@ -1051,7 +1051,7 @@ DLNA_Browser.prototype.on_file_load = function() {
 
     // Update the now playing indicator and rerender the menu if necessary
     folder[episode.id].isPlaying = true;
-    this.menu.renderMenu("", 1);
+    this.menu.renderMenu(null, 1);
 
     // Set the title to match the current episode
     mp.msg.trace("setting title to: " + episode.folder.name + ": " + folder[episode.id].name);
@@ -1234,7 +1234,7 @@ DLNA_Browser.prototype.select = function(selection) {
         success = true;
     }
 
-    this.menu.renderMenu("", 1);
+    this.menu.renderMenu(null, 1);
     return success;
 }
 
@@ -1311,7 +1311,7 @@ DLNA_Browser.prototype.back = function() {
         this.generateMenuTitle(this.titles[this.titles.length-1]);
     }
 
-    this.menu.renderMenu("", 1);
+    this.menu.renderMenu(null, 1);
 }
 
 DLNA_Browser.prototype._registerCallbacks = function() {

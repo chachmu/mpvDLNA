@@ -450,10 +450,17 @@ SelectionMenu.prototype.renderMenu = function(selectionPrefix, renderMode)
         var opt;
         for (var i = startIdx; i <= endIdx; ++i) {
             opt = this.options[i];
-            if (i === this.selectionIdx)
-                // NOTE: Prefix stays on screen until cursor-move or re-render.z
-                finalString += Ass.yellow(c)+'> '+(typeof selectionPrefix === 'string' ?
-                                                   Ass.esc(selectionPrefix, c)+' ' : '');
+
+            if (i === this.selectionIdx) finalString += '\n'+Ass.bold(true);
+
+            if (opt.isPlaying) finalString += Ass.green(c);
+            else if (i === this.selectionIdx) finalString += Ass.yellow(c);
+
+            // NOTE: Prefix stays on screen until cursor-move or re-render.z
+            finalString += i === this.selectionIdx ? '> ' : '| ';
+
+            finalString += typeof selectionPrefix === 'string' ?
+                                  Ass.esc(selectionPrefix, c)+' ' : '';
 
             // If the menu option has no children to move to
             // then it should be colored red and ignored
@@ -474,10 +481,12 @@ SelectionMenu.prototype.renderMenu = function(selectionPrefix, renderMode)
             if (opt.isPlaying)
                 finalString += " <==";
 
-            if (i === this.selectionIdx || (opt.children != null && opt.children.length == 0))
+            if (i === this.selectionIdx) finalString += Ass.bold(false);
+
+            if (opt.isPlaying || i === this.selectionIdx || (opt.children != null && opt.children.length == 0))
                 finalString += Ass.white(c);
             if (i !== endIdx)
-                finalString += '\n';
+                finalString += i === this.selectionIdx ? '\n\n' : '\n';
         }
     }
 
